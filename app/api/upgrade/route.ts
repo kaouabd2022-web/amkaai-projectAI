@@ -1,37 +1,41 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { JobStatus } from "@prisma/client";
 
 export async function POST() {
   try {
     const { userId } = await auth();
 
-    // 🔒 تأكيد تسجيل الدخول
+    // 🔒 auth check
     if (!userId) {
-      return new NextResponse("Unauthorized", { status: 401 });
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
-    // 👑 ترقية المستخدم إلى PRO + إضافة credits
+    // 👤 upgrade user to PRO
     const updatedUser = await db.user.update({
       where: { clerkId: userId },
       data: {
         plan: "PRO",
         credits: {
-          increment: 50, // 🎁 bonus PRO
+          increment: 50, // bonus PRO
         },
       },
     });
 
-    // 🚀 رفع أولوية كل المهام القديمة
+    // 🚀 boost all active jobs
     await db.videoJob.updateMany({
       where: {
-        userId,
+        userId: updatedUser.id,
         status: {
-          in: ["pending", "processing"],
+          in: [JobStatus.PENDING, JobStatus.PROCESSING],
         },
       },
       data: {
-        priority: 1, // PRO priority
+        priority: 1,
       },
     });
 

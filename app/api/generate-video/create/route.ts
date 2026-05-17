@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { videoQueue } from "@/lib/queue";
+import { addJob } from "@/lib/queue"; // ✅ FIX هنا
 import { auth } from "@clerk/nextjs/server";
 
 const COST_PER_VIDEO = 5;
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 🚫 LIMIT ACTIVE JOBS (anti spam)
+    // 🚫 LIMIT ACTIVE JOBS
     const activeJobs = await db.videoJob.count({
       where: {
         userId: user.id,
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 💰 ATOMIC CREDIT CHECK + DEDUCT
+    // 💰 ATOMIC CREDIT DEDUCTION
     const creditDeduct = await db.user.updateMany({
       where: {
         id: user.id,
@@ -99,7 +99,7 @@ export async function POST(req: Request) {
       },
     });
 
-    // 💳 CREATE USAGE (billing tracking)
+    // 💳 CREATE USAGE
     const usage = await db.usage.create({
       data: {
         userId: user.id,
@@ -118,27 +118,12 @@ export async function POST(req: Request) {
       },
     });
 
-    // 🚀 PUSH TO BULLMQ (production-ready config)
-    await videoQueue.add(
-      "generate-video",
-      {
-        jobId: job.id,
-      },
-      {
-        priority: Math.max(1, Math.min(priority, 10)), // clamp
-        attempts: 3,
-        backoff: {
-          type: "exponential",
-          delay: 2000,
-        },
-        removeOnComplete: {
-          count: 100,
-        },
-        removeOnFail: {
-          count: 500,
-        },
-      }
-    );
+    // 🚀 ADD TO INTERNAL QUEUE (بدون Redis)
+    addJob({
+      id: job.id,
+      type: "video",
+      priority: Math.max(1, Math.min(priority, 10)),
+    });
 
     // 📤 RESPONSE
     return NextResponse.json({

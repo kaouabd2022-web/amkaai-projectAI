@@ -1,18 +1,19 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { PlanType } from "@prisma/client";
 
 // 🎯 PLAN CONFIG
 const PLAN_CREDITS = {
-  pro: 120,
-  premium: 320,
-};
+  PRO: 120,
+  PREMIUM: 320,
+} as const;
 
-// ⚠️ مهم: فقط events معينة
-const ALLOWED_EVENTS = [
+// ⚠️ allowed events
+const ALLOWED_EVENTS = new Set([
   "order_created",
   "subscription_created",
   "subscription_updated",
-];
+]);
 
 export async function POST(req: Request) {
   try {
@@ -30,12 +31,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // ❌ تجاهل events غير مهمة
-    if (!ALLOWED_EVENTS.includes(eventName)) {
+    // ❌ ignore unwanted events
+    if (!ALLOWED_EVENTS.has(eventName)) {
       return NextResponse.json({ ignored: true });
     }
 
-    // 🔒 IDMPOTENCY (منع التكرار)
+    // 🔒 idempotency check
     const existingEvent = await db.webhookEvent.findUnique({
       where: { eventId },
     });
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ duplicate: true });
     }
 
-    // 👤 USER EMAIL
+    // 👤 email
     const email = body?.data?.attributes?.user_email;
 
     if (!email) {
@@ -55,29 +56,27 @@ export async function POST(req: Request) {
       );
     }
 
-    // 🔎 FIND USER
     const user = await db.user.findUnique({
       where: { email },
     });
 
     if (!user) {
-      console.log("❌ User not found:", email);
       return NextResponse.json(
         { error: "User not found" },
         { status: 404 }
       );
     }
 
-    // 🎯 VARIANT → PLAN
-    const variantId = body?.data?.attributes?.variant_id;
+    // 🎯 variant → plan mapping SAFE
+    const variantId = body?.data?.attributes?.variant_id?.toString();
 
     const PRO_VARIANT_ID = process.env.LEMON_SQUEEZY_PRO_VARIANT_ID;
     const PREMIUM_VARIANT_ID = process.env.LEMON_SQUEEZY_PREMIUM_VARIANT_ID;
 
-    let plan: "pro" | "premium" | null = null;
+    let plan: PlanType | null = null;
 
-    if (variantId == PRO_VARIANT_ID) plan = "pro";
-    if (variantId == PREMIUM_VARIANT_ID) plan = "premium";
+    if (variantId === PRO_VARIANT_ID) plan = PlanType.PRO;
+    if (variantId === PREMIUM_VARIANT_ID) plan = PlanType.PREMIUM;
 
     if (!plan) {
       console.log("⚠️ Unknown variant:", variantId);
@@ -87,29 +86,29 @@ export async function POST(req: Request) {
       );
     }
 
-    const credits = PLAN_CREDITS[plan];
+    const creditsToAdd = PLAN_CREDITS[plan];
 
-    // 📦 OPTIONAL: Lemon IDs
+    // 📦 lemon ids
     const lemonCustomerId =
       body?.data?.attributes?.customer_id?.toString() || null;
 
     const lemonSubscriptionId =
       body?.data?.attributes?.subscription_id?.toString() || null;
 
-    // 💳 UPDATE USER (atomic)
+    // 💳 atomic transaction
     await db.$transaction([
       db.user.update({
         where: { id: user.id },
         data: {
           plan,
-          isPro: true,
-          credits: credits, // ⚠️ replace or change to increment if needed
+          credits: {
+            increment: creditsToAdd, // 🔥 safer than overwrite
+          },
           lemonCustomerId,
           lemonSubscriptionId,
         },
       }),
 
-      // 🧾 SAVE EVENT (idempotency)
       db.webhookEvent.create({
         data: {
           eventId,
@@ -118,19 +117,17 @@ export async function POST(req: Request) {
     ]);
 
     console.log(
-      `✅ ${email} upgraded → ${plan} (${credits} credits)`
+      `✅ ${email} upgraded → ${plan} (+${creditsToAdd})`
     );
 
     return NextResponse.json({ success: true });
 
   } catch (error: any) {
-    console.error("🔥 WEBHOOK FATAL ERROR:", error);
+    console.error("🔥 WEBHOOK ERROR:", error);
 
     return NextResponse.json(
       {
-        error:
-          error?.message ||
-          "Internal webhook processing error",
+        error: error?.message || "Internal webhook error",
       },
       { status: 500 }
     );

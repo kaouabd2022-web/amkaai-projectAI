@@ -1,20 +1,44 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { JobStatus } from "@prisma/client";
 
 //////////////////////////////////////////////////
-// 🚀 VIDEO JOB STATUS API (SAAS READY)
+// 🧠 STATUS MAPPER (FIX TS + CLEAN UX)
+//////////////////////////////////////////////////
+
+function mapStatus(status: JobStatus): string {
+  switch (status) {
+    case "PENDING":
+      return "pending";
+    case "PROCESSING":
+      return "processing";
+    case "COMPLETED":
+      return "done";
+    case "FAILED":
+      return "failed";
+    case "CANCELLED":
+      return "cancelled";
+    default:
+      return "unknown";
+  }
+}
+
+//////////////////////////////////////////////////
+// 🚀 VIDEO JOB STATUS API (PRODUCTION READY)
 //////////////////////////////////////////////////
 
 export async function POST(req: Request) {
   try {
+    //////////////////////////////////////////////////
     // 📥 INPUT SAFE PARSING
+    //////////////////////////////////////////////////
     let body;
 
     try {
       body = await req.json();
     } catch {
       return NextResponse.json(
-        { error: "Invalid JSON" },
+        { error: "invalid_json" },
         { status: 400 }
       );
     }
@@ -23,12 +47,14 @@ export async function POST(req: Request) {
 
     if (!jobId) {
       return NextResponse.json(
-        { error: "jobId required" },
+        { error: "jobId_required" },
         { status: 400 }
       );
     }
 
-    // 🔎 FETCH JOB (minimal + optimized)
+    //////////////////////////////////////////////////
+    // 🔎 FETCH JOB (optimized)
+    //////////////////////////////////////////////////
     const job = await db.videoJob.findUnique({
       where: { id: jobId },
       select: {
@@ -43,12 +69,15 @@ export async function POST(req: Request) {
 
     if (!job) {
       return NextResponse.json(
-        { error: "Job not found" },
+        { error: "job_not_found" },
         { status: 404 }
       );
     }
 
-    // ❌ CANCELLED STATE
+    //////////////////////////////////////////////////
+    // ⚡ FAST EXIT STATES
+    //////////////////////////////////////////////////
+
     if (job.status === "CANCELLED") {
       return NextResponse.json({
         status: "cancelled",
@@ -58,7 +87,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // ✅ COMPLETED STATE (fast exit)
     if (job.status === "COMPLETED") {
       return NextResponse.json({
         status: "done",
@@ -68,8 +96,18 @@ export async function POST(req: Request) {
       });
     }
 
+    if (job.status === "FAILED") {
+      return NextResponse.json({
+        status: "failed",
+        video: null,
+        position: null,
+        estimatedTime: 0,
+        error: job.error ?? "Generation failed",
+      });
+    }
+
     //////////////////////////////////////////////////
-    // ⚙️ QUEUE POSITION (optimized ranking system)
+    // 📊 QUEUE POSITION (efficient ranking)
     //////////////////////////////////////////////////
 
     const position = await db.videoJob.count({
@@ -77,8 +115,6 @@ export async function POST(req: Request) {
         status: {
           in: ["PENDING", "PROCESSING"],
         },
-
-        // jobs ahead of current job
         OR: [
           {
             priority: { gt: job.priority },
@@ -92,20 +128,20 @@ export async function POST(req: Request) {
     });
 
     //////////////////////////////////////////////////
-    // ⏱ ESTIMATION MODEL (realistic SaaS model)
+    // ⏱ ESTIMATION ENGINE
     //////////////////////////////////////////////////
 
     const baseTimePerJob =
       job.priority >= 8
-        ? 12 // high priority fast lane
+        ? 12
         : job.priority >= 4
         ? 20
-        : 30; // normal queue
+        : 30;
 
     const estimatedTime = position * baseTimePerJob;
 
     //////////////////////////////////////////////////
-    // 🔄 PENDING STATE
+    // 🔄 ACTIVE STATES
     //////////////////////////////////////////////////
 
     if (job.status === "PENDING") {
@@ -117,10 +153,6 @@ export async function POST(req: Request) {
       });
     }
 
-    //////////////////////////////////////////////////
-    // ⚙️ PROCESSING STATE
-    //////////////////////////////////////////////////
-
     if (job.status === "PROCESSING") {
       return NextResponse.json({
         status: "processing",
@@ -131,25 +163,11 @@ export async function POST(req: Request) {
     }
 
     //////////////////////////////////////////////////
-    // 💀 FAILED STATE (important UX fix)
-    //////////////////////////////////////////////////
-
-    if (job.status === "FAILED") {
-      return NextResponse.json({
-        status: "failed",
-        video: null,
-        position: null,
-        estimatedTime: 0,
-        error: job.error ?? "Generation failed",
-      });
-    }
-
-    //////////////////////////////////////////////////
-    // 🧠 FALLBACK (future-proof)
+    // 🧠 FALLBACK (FIXED ❌ toLowerCase ERROR)
     //////////////////////////////////////////////////
 
     return NextResponse.json({
-      status: job.status.toLowerCase(),
+      status: mapStatus(job.status), // ✅ FIX
       video: job.resultUrl ?? null,
       position,
       estimatedTime,

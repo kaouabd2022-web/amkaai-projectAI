@@ -1,18 +1,17 @@
-// lib/credits.ts
-
 import { db } from "@/lib/db";
 import { AI_COSTS, AIType } from "@/lib/config";
+import { UsageStatus } from "@prisma/client";
 
 //////////////////////////////////////////////////
 // 🧠 TYPES
 //////////////////////////////////////////////////
 
 type UseCreditsOptions = {
-  reference?: string; // jobId / requestId
+  reference?: string;
 };
 
 //////////////////////////////////////////////////
-// 🚀 MAIN FUNCTION (SMART + SAFE)
+// 🚀 USE CREDITS (SAFE + ATOMIC)
 //////////////////////////////////////////////////
 
 export async function useCredits(
@@ -26,11 +25,11 @@ export async function useCredits(
     throw new Error("Invalid AI type");
   }
 
-  const reference = options?.reference || null;
+  const reference = options?.reference ?? null;
 
   const result = await db.$transaction(async (tx) => {
     //////////////////////////////////////////////////
-    // 💸 SAFE DEDUCTION (NO NEGATIVE)
+    // 💸 DEDUCT CREDITS SAFELY
     //////////////////////////////////////////////////
     const update = await tx.user.updateMany({
       where: {
@@ -51,21 +50,21 @@ export async function useCredits(
     }
 
     //////////////////////////////////////////////////
-    // 📊 USAGE LOG (PENDING for refund system)
+    // 📊 USAGE LOG (TYPE SAFE)
     //////////////////////////////////////////////////
     const usage = await tx.usage.create({
       data: {
         userId,
         type,
         cost,
-        status: "pending",   // 🔥 مهم
+        status: UsageStatus.PENDING, // 🔥 FIX IMPORTANT
         refunded: false,
-        reference,
+        referenceId: reference, // ⚠️ corrected field name
       },
     });
 
     //////////////////////////////////////////////////
-    // 🔎 GET UPDATED BALANCE
+    // 🔎 GET BALANCE
     //////////////////////////////////////////////////
     const user = await tx.user.findUnique({
       where: { id: userId },
@@ -88,7 +87,7 @@ export async function useCredits(
 }
 
 //////////////////////////////////////////////////
-// ✅ MARK SUCCESS (بعد نجاح AI)
+// ✅ MARK SUCCESS
 //////////////////////////////////////////////////
 
 export async function markUsageSuccess(reference: string) {
@@ -96,17 +95,17 @@ export async function markUsageSuccess(reference: string) {
 
   await db.usage.updateMany({
     where: {
-      reference,
-      status: "pending",
+      referenceId: reference,
+      status: UsageStatus.PENDING,
     },
     data: {
-      status: "completed",
+      status: UsageStatus.COMPLETED,
     },
   });
 }
 
 //////////////////////////////////////////////////
-// 💸 REFUND SYSTEM (SMART)
+// 💸 REFUND SYSTEM
 //////////////////////////////////////////////////
 
 export async function refundCredits(reference: string) {
@@ -115,26 +114,20 @@ export async function refundCredits(reference: string) {
   }
 
   return await db.$transaction(async (tx) => {
-    //////////////////////////////////////////////////
-    // 🔎 FIND USAGE
-    //////////////////////////////////////////////////
     const usage = await tx.usage.findFirst({
-      where: { reference },
+      where: { referenceId: reference },
     });
 
     if (!usage) {
       throw new Error("Usage not found");
     }
 
-    //////////////////////////////////////////////////
-    // 🛑 PREVENT DOUBLE REFUND
-    //////////////////////////////////////////////////
     if (usage.refunded) {
       return { skipped: true };
     }
 
     //////////////////////////////////////////////////
-    // 💸 REFUND CREDITS
+    // 💸 REFUND
     //////////////////////////////////////////////////
     await tx.user.update({
       where: { id: usage.userId },
@@ -145,14 +138,11 @@ export async function refundCredits(reference: string) {
       },
     });
 
-    //////////////////////////////////////////////////
-    // 🧾 UPDATE USAGE
-    //////////////////////////////////////////////////
     await tx.usage.update({
       where: { id: usage.id },
       data: {
         refunded: true,
-        status: "failed",
+        status: UsageStatus.FAILED, // 🔥 FIX
       },
     });
 

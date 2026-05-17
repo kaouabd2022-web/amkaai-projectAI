@@ -56,6 +56,7 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // relations
   videoJobs          VideoJob[]
   images             Image[]
   voices             Voice[]
@@ -67,6 +68,7 @@ model User {
   abandonedCheckouts AbandonedCheckout[]
 
   @@index([clerkId])
+  @@index([email])
 }
 
 //////////////////////////////////////////////////
@@ -91,10 +93,11 @@ model Subscription {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([status])
 }
 
 //////////////////////////////////////////////////
-// 💰 PAYMENT
+// 💰 PAYMENT (AUTOMATIC)
 //////////////////////////////////////////////////
 
 model Payment {
@@ -115,7 +118,7 @@ model Payment {
 }
 
 //////////////////////////////////////////////////
-// 📊 USAGE (Billing Core)
+// 📊 USAGE (BILLING CORE)
 //////////////////////////////////////////////////
 
 model Usage {
@@ -124,7 +127,7 @@ model Usage {
   userId String
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  type String // video | image | voice
+  type String
   cost Int
 
   status   UsageStatus @default(PENDING)
@@ -138,10 +141,11 @@ model Usage {
 
   @@index([userId])
   @@index([status])
+  @@index([referenceId])
 }
 
 //////////////////////////////////////////////////
-// 🎬 VIDEO JOB
+// 🎬 VIDEO JOB (CORE ENGINE)
 //////////////////////////////////////////////////
 
 model VideoJob {
@@ -152,13 +156,16 @@ model VideoJob {
 
   prompt String
 
-  status JobStatus @default(PENDING)
-  priority Int @default(0)
+  status   JobStatus @default(PENDING)
+  priority Int       @default(0)
 
   resultUrl String?
   error     String?
 
-  attempts Int @default(0)
+  attempts    Int @default(0)
+  maxAttempts Int @default(3)
+
+  progress Int @default(0)
 
   usageId String?
   usage   Usage? @relation(fields: [usageId], references: [id], onDelete: SetNull)
@@ -230,7 +237,7 @@ model Notification {
 }
 
 //////////////////////////////////////////////////
-// 💳 MANUAL PAYMENT
+// 💳 MANUAL PAYMENT (🔥 PRO FRAUD SYSTEM)
 //////////////////////////////////////////////////
 
 model ManualPayment {
@@ -247,13 +254,41 @@ model ManualPayment {
   screenshotUrl String?
   transactionId String?
 
-  status   String @default("PENDING")
+  //////////////////////////////////////////////////
+  // 🧠 AI FRAUD SYSTEM
+  //////////////////////////////////////////////////
+
+  aiScore   Float?   // 0 → 1
+  aiRawText String?
+
+  riskLevel String? // LOW / MEDIUM / HIGH
+
+  //////////////////////////////////////////////////
+  // 📊 STATUS
+  //////////////////////////////////////////////////
+
+  status   String  @default("PENDING")
   verified Boolean @default(false)
+
+  //////////////////////////////////////////////////
+  // ❌ ADMIN ACTIONS (🔥 FIX YOUR ERROR HERE)
+  //////////////////////////////////////////////////
+
+  rejectedBy   String?   // ✅ FIXED
+  rejectReason String?
+
+  //////////////////////////////////////////////////
+  // 🌐 TRACKING
+  //////////////////////////////////////////////////
+
+  ipAddress String?
+  device    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([status])
 }
 
 //////////////////////////////////////////////////

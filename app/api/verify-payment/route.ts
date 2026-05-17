@@ -1,20 +1,31 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import Tesseract from "tesseract.js";
+import { PlanType } from "@prisma/client";
 
 export async function POST(req: Request) {
-  const { paymentId } = await req.json();
-
-  const payment = await db.manualPayment.findUnique({
-    where: { id: paymentId },
-  });
-
-  if (!payment || !payment.screenshotUrl) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
   try {
-    // 🧠 OCR
+    const { paymentId } = await req.json();
+
+    if (!paymentId) {
+      return NextResponse.json(
+        { error: "paymentId required" },
+        { status: 400 }
+      );
+    }
+
+    const payment = await db.manualPayment.findUnique({
+      where: { id: paymentId },
+    });
+
+    if (!payment || !payment.screenshotUrl) {
+      return NextResponse.json(
+        { error: "Not found" },
+        { status: 404 }
+      );
+    }
+
+    // 🧠 OCR processing
     const result = await Tesseract.recognize(
       payment.screenshotUrl,
       "eng"
@@ -22,14 +33,14 @@ export async function POST(req: Request) {
 
     const text = result.data.text.toLowerCase();
 
-    // 🔍 تحقق من RIP + مبلغ
+    // 🔍 normalize RIP
     const rip = process.env.BARIDIMOB_RIP?.toLowerCase() || "";
     const amount = payment.amount.toString();
 
-    const hasRip = rip && text.includes(rip.slice(0, 6));
+    const hasRip = rip.length > 3 && text.includes(rip.slice(0, 6));
     const hasAmount = text.includes(amount);
 
-    // 🔁 منع تكرار نفس الصورة (بسيط)
+    // 🔁 duplicate check
     const existing = await db.manualPayment.findFirst({
       where: {
         screenshotUrl: payment.screenshotUrl,
@@ -47,20 +58,23 @@ export async function POST(req: Request) {
         },
       });
 
-      return NextResponse.json({ error: "Duplicate screenshot" });
+      return NextResponse.json({
+        ok: false,
+        error: "Duplicate screenshot",
+      });
     }
 
-    // 🧠 score
-    let score = 0;
-    if (hasRip) score += 0.5;
-    if (hasAmount) score += 0.5;
+    // 🧠 AI SCORE
+    const score =
+      (hasRip ? 0.5 : 0) +
+      (hasAmount ? 0.5 : 0);
 
-    let status = "PENDING";
+    let status: "PENDING" | "APPROVED" | "REJECTED" = "PENDING";
 
     if (score >= 0.8) status = "APPROVED";
-    if (score < 0.5) status = "REJECTED";
+    else if (score < 0.5) status = "REJECTED";
 
-    // 💾 تحديث الدفع
+    // 💾 update payment
     await db.manualPayment.update({
       where: { id: paymentId },
       data: {
@@ -70,13 +84,17 @@ export async function POST(req: Request) {
       },
     });
 
-    // ⚡ تفعيل تلقائي
+    // ⚡ auto activate user (ONLY if approved)
     if (status === "APPROVED") {
       await db.user.update({
         where: { clerkId: payment.userId },
         data: {
-          plan: payment.plan,
-          credits: payment.plan === "PRO" ? 150 : 500,
+          plan: payment.plan as PlanType,
+          credits: payment.plan === "PRO"
+            ? 150
+            : payment.plan === "PREMIUM"
+            ? 300
+            : 50,
         },
       });
     }
@@ -88,6 +106,8 @@ export async function POST(req: Request) {
     });
 
   } catch (err) {
+    console.error("VERIFY PAYMENT ERROR:", err);
+
     return NextResponse.json(
       { error: "Verification failed" },
       { status: 500 }
