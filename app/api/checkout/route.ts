@@ -4,7 +4,6 @@ import { db } from "@/lib/db";
 
 export async function POST(req: Request) {
   try {
-    // 🔐 AUTH
     const { userId } = await auth();
 
     if (!userId) {
@@ -14,82 +13,80 @@ export async function POST(req: Request) {
       );
     }
 
-    // 👤 GET USER FROM DB
-    const user = await db.user.findUnique({
-      where: { clerkId: userId },
-    });
+    const body = await req.json();
 
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found in database" },
-        { status: 404 }
-      );
-    }
+    const plan = body?.plan;
 
-    // 📦 SAFE BODY PARSE
-    let body: any;
-    try {
-      body = await req.json();
-    } catch {
+    if (
+      plan !== "pro" &&
+      plan !== "premium"
+    ) {
       return NextResponse.json(
-        { error: "Invalid JSON body" },
+        { error: "Invalid plan" },
         { status: 400 }
       );
     }
 
-    const { plan } = body;
+    const checkoutUrl =
+      plan === "premium"
+        ? process.env.LEMON_SQUEEZY_PREMIUM_URL
+        : process.env.LEMON_SQUEEZY_PRO_URL;
 
-    // 🎯 VALIDATION
-    if (!plan || !["pro", "premium"].includes(plan)) {
+    if (!checkoutUrl) {
       return NextResponse.json(
-        { error: "Invalid plan selected" },
-        { status: 400 }
-      );
-    }
-
-    // 🔗 ENV CHECK
-    const proUrl = process.env.LEMON_SQUEEZY_PRO_URL;
-    const premiumUrl = process.env.LEMON_SQUEEZY_PREMIUM_URL;
-
-    if (!proUrl || !premiumUrl) {
-      console.error("❌ Missing Lemon Squeezy URLs");
-      return NextResponse.json(
-        { error: "Server misconfigured (missing checkout URLs)" },
+        {
+          error:
+            "Missing Lemon checkout URL",
+        },
         { status: 500 }
       );
     }
 
-    // 🎯 SELECT URL
-    const checkoutUrl =
-      plan === "premium" ? premiumUrl : proUrl;
+    // لا توقف الدفع إذا فشلت قاعدة البيانات
+    try {
+      const user =
+        await db.user.findUnique({
+          where: {
+            clerkId: userId,
+          },
+        });
 
-    // 💾 SAVE ABANDONED CHECKOUT (NON-BLOCKING)
-    db.abandonedCheckout.create({
-      data: {
-        userId: user.id, // ✅ FIX مهم
-        email: user.email,
-        checkoutUrl,
-        plan,
-      },
-    }).catch((err) => {
-      console.warn("⚠️ Abandoned checkout save failed:", err);
-    });
+      if (user) {
+        await db.abandonedCheckout.create({
+          data: {
+            userId: user.id,
+            email: user.email,
+            checkoutUrl,
+            plan,
+          },
+        });
+      }
+    } catch (e) {
+      console.warn(
+        "Checkout tracking skipped:",
+        e
+      );
+    }
 
-    // 🚀 RESPONSE
     return NextResponse.json({
       url: checkoutUrl,
     });
 
   } catch (error: any) {
-    console.error("🔥 CHECKOUT FATAL ERROR:", error);
+    console.error(
+      "CHECKOUT ERROR:",
+      error
+    );
 
     return NextResponse.json(
       {
         error:
           error?.message ||
-          "Internal server error during checkout",
+          "Checkout failed",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
