@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import { Worker } from "bullmq";
+import { connection } from "@/lib/redis";
 
 const MAX_RETRIES = 3;
 const BASE_DELAY = 2000;
@@ -107,7 +109,6 @@ export async function processVideoJob(
       success: true,
       resultUrl,
     };
-
   } catch (error) {
     console.error("🔥 VIDEO ERROR:", error);
 
@@ -121,20 +122,13 @@ export async function processVideoJob(
 }
 
 //////////////////////////////////////////////////
-// 🤖 AI GENERATION (🔥 FIX HERE)
+// 🤖 AI GENERATION
 //////////////////////////////////////////////////
 
 async function generateVideo(prompt: string): Promise<string> {
   console.log("🤖 AI PROMPT:", prompt);
 
-  //////////////////////////////////////////////////
-  // ⏳ SIMULATION
-  //////////////////////////////////////////////////
   await new Promise((r) => setTimeout(r, 4000));
-
-  //////////////////////////////////////////////////
-  // 🎯 DYNAMIC RESULT (IMPORTANT FIX)
-  //////////////////////////////////////////////////
 
   const safePrompt = encodeURIComponent(prompt);
 
@@ -145,16 +139,11 @@ async function generateVideo(prompt: string): Promise<string> {
 // ⏱ TIMEOUT
 //////////////////////////////////////////////////
 
-function withTimeout<T>(
-  promise: Promise<T>,
-  ms: number
-): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) =>
-      setTimeout(() => {
-        reject(new Error("AI timeout"));
-      }, ms)
+      setTimeout(() => reject(new Error("AI timeout")), ms)
     ),
   ]);
 }
@@ -163,10 +152,7 @@ function withTimeout<T>(
 // ❌ FAILURE HANDLER
 //////////////////////////////////////////////////
 
-async function handleFailure(
-  jobId: string,
-  error: unknown
-) {
+async function handleFailure(jobId: string, error: unknown) {
   try {
     const job = await db.videoJob.findUnique({
       where: { id: jobId },
@@ -176,10 +162,6 @@ async function handleFailure(
 
     const attempts = job.attempts ?? 0;
     const canRetry = attempts < MAX_RETRIES;
-
-    //////////////////////////////////////////////////
-    // 🔁 RETRY
-    //////////////////////////////////////////////////
 
     if (canRetry) {
       const delay = Math.min(
@@ -207,10 +189,6 @@ async function handleFailure(
       return;
     }
 
-    //////////////////////////////////////////////////
-    // 💀 FINAL FAILURE
-    //////////////////////////////////////////////////
-
     await db.videoJob.update({
       where: { id: jobId },
       data: {
@@ -232,8 +210,36 @@ async function handleFailure(
     }
 
     console.error("❌ FINAL FAILURE:", jobId);
-
   } catch (fatalError) {
     console.error("💀 FATAL:", fatalError);
   }
 }
+
+//////////////////////////////////////////////////
+// 🎯 WORKER LISTENER
+//////////////////////////////////////////////////
+
+const worker = new Worker(
+  "video-queue",
+  async (job) => {
+    const { jobId } = job.data;
+
+    console.log("📥 Received job:", jobId);
+
+    return await processVideoJob(jobId);
+  },
+  {
+    connection, // ✅ FIXED HERE
+    concurrency: 3,
+  }
+);
+
+worker.on("completed", (job) => {
+  console.log("✅ Job completed:", job?.id);
+});
+
+worker.on("failed", (job, err) => {
+  console.error("❌ Job failed:", job?.id, err);
+});
+
+console.log("🔥 VIDEO WORKER STARTED");
