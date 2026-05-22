@@ -14,7 +14,7 @@
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset",
     "db:push": "prisma db push",
-    "worker": "tsx --env-file=.env.local workers/video.worker.ts",
+    "worker": "tsx --env-file=.env.local lib/workers/video.worker.ts",
     "worker:dev": "tsx watch --env-file=.env.local workers/video.worker.ts",
     "clean": "rm -rf node_modules .next package-lock.json",
     "postinstall": "prisma generate"
