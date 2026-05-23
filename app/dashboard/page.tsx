@@ -23,9 +23,13 @@ import {
   BarChart3,
   Settings,
   CreditCard,
+  Wand2,
 } from "lucide-react";
 
-import { motion, AnimatePresence } from "framer-motion";
+import {
+  motion,
+  AnimatePresence,
+} from "framer-motion";
 
 //////////////////////////////////////////////////
 // TYPES
@@ -44,6 +48,131 @@ type Chat = {
 };
 
 //////////////////////////////////////////////////
+// SMART AI RESPONSES
+//////////////////////////////////////////////////
+
+function generateAIResponse(prompt: string) {
+  const lower = prompt.toLowerCase();
+
+  //////////////////////////////////////////////////
+  // VIDEO
+  //////////////////////////////////////////////////
+
+  if (
+    lower.includes("video") ||
+    lower.includes("cinematic") ||
+    lower.includes("film")
+  ) {
+    return `🎬 Cinematic Scene Generated
+
+Title:
+"${prompt}"
+
+📍 Scene Direction:
+Ultra cinematic environment with dramatic lighting, realistic camera motion, volumetric fog and dynamic atmosphere.
+
+🎥 Camera:
+Slow cinematic dolly movement with depth of field.
+
+✨ Style:
+Kling AI realism • 4K • hyper detailed • movie quality.
+
+🔊 Audio:
+Ambient atmosphere with immersive sound design.
+
+⏳ Estimated render:
+12 seconds`;
+  }
+
+  //////////////////////////////////////////////////
+  // IMAGE
+  //////////////////////////////////////////////////
+
+  if (
+    lower.includes("image") ||
+    lower.includes("photo") ||
+    lower.includes("poster")
+  ) {
+    return `🖼️ AI Image Prompt Generated
+
+"${prompt}"
+
+Style:
+Ultra realistic • cinematic lighting • highly detailed • 8K • masterpiece quality.
+
+📸 Composition:
+Professional framing with dramatic shadows and depth.`;
+  }
+
+  //////////////////////////////////////////////////
+  // LOGO
+  //////////////////////////////////////////////////
+
+  if (
+    lower.includes("logo") ||
+    lower.includes("brand")
+  ) {
+    return `✨ Brand Identity Generated
+
+Brand Concept:
+${prompt}
+
+🎨 Style:
+Minimal futuristic luxury branding with glowing accents and premium typography.
+
+📦 Deliverables:
+• Logo concept
+• Color palette
+• Typography direction
+• Social branding`;
+  }
+
+  //////////////////////////////////////////////////
+  // WEBSITE
+  //////////////////////////////////////////////////
+
+  if (
+    lower.includes("website") ||
+    lower.includes("landing")
+  ) {
+    return `🌐 AI Website Structure Created
+
+Project:
+${prompt}
+
+Sections:
+• Hero section
+• Features
+• Pricing
+• Testimonials
+• CTA
+• Footer
+
+✨ Style:
+Modern SaaS UI with glassmorphism and cinematic gradients.`;
+  }
+
+  //////////////////////////////////////////////////
+  // DEFAULT
+  //////////////////////////////////////////////////
+
+  return `🤖 AI Analysis Complete
+
+Prompt:
+"${prompt}"
+
+✨ AMKAAI generated an intelligent cinematic response based on your request.
+
+Capabilities detected:
+• Creative AI generation
+• Cinematic understanding
+• Visual enhancement
+• Advanced prompting
+
+🚀 Ready for production rendering.`;
+}
+
+//////////////////////////////////////////////////
 // PAGE
 //////////////////////////////////////////////////
 
@@ -56,11 +185,14 @@ export default function DashboardPage() {
 
   const [input, setInput] = useState("");
 
-  const [credits] = useState(42);
+  const [credits, setCredits] =
+    useState(42);
 
   const [plan] = useState("PRO");
 
-  const [chats, setChats] = useState<Chat[]>([]);
+  const [chats, setChats] = useState<Chat[]>(
+    []
+  );
 
   const [activeChatId, setActiveChatId] =
     useState<string | null>(null);
@@ -142,13 +274,20 @@ export default function DashboardPage() {
 
     if (!activeChat) return;
 
+    if (credits <= 0) {
+      alert("No credits remaining.");
+      return;
+    }
+
+    const prompt = input;
+
     const userMessage: Message = {
       role: "user",
-      content: input,
+      content: prompt,
     };
 
     //////////////////////////////////////////////////
-    // INSTANT UI
+    // USER MESSAGE
     //////////////////////////////////////////////////
 
     setChats((prev) =>
@@ -159,7 +298,7 @@ export default function DashboardPage() {
 
               title:
                 chat.messages.length === 0
-                  ? input.slice(0, 30)
+                  ? prompt.slice(0, 30)
                   : chat.title,
 
               messages: [
@@ -176,14 +315,16 @@ export default function DashboardPage() {
     setLoading(true);
 
     //////////////////////////////////////////////////
-    // FAKE AI
+    // SMART AI
     //////////////////////////////////////////////////
 
     setTimeout(() => {
+      const aiResponse =
+        generateAIResponse(prompt);
+
       const aiMessage: Message = {
         role: "assistant",
-        content:
-          "✨ Cinematic AI response generated successfully. Your content is now ready.",
+        content: aiResponse,
       };
 
       setChats((prev) =>
@@ -200,19 +341,20 @@ export default function DashboardPage() {
         )
       );
 
+      setCredits((prev) => prev - 1);
+
       setLoading(false);
-    }, 1400);
+    }, 1800);
   };
 
   return (
     <main className="relative flex h-screen overflow-hidden bg-black text-white">
 
-      {/* 🌌 BACKGROUND */}
+      {/* BACKGROUND */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.12),transparent_30%),radial-gradient(circle_at_bottom,rgba(168,85,247,0.12),transparent_30%)]" />
 
       {/* SIDEBAR */}
       <AnimatePresence>
-
         {sidebarOpen && (
           <motion.aside
             initial={{
@@ -229,7 +371,6 @@ export default function DashboardPage() {
             }}
             className="relative z-30 flex w-80 flex-col border-r border-white/10 bg-white/5 backdrop-blur-2xl"
           >
-
             {/* TOP */}
             <div className="border-b border-white/10 p-5">
 
@@ -252,7 +393,6 @@ export default function DashboardPage() {
                 </button>
               </div>
 
-              {/* NEW CHAT */}
               <button
                 onClick={createNewChat}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 font-bold text-black transition hover:scale-[1.02]"
@@ -287,7 +427,6 @@ export default function DashboardPage() {
                       setActiveChatId(chat.id)
                     }
                   >
-
                     <div className="overflow-hidden">
 
                       <p className="truncate text-sm font-medium">
@@ -295,8 +434,7 @@ export default function DashboardPage() {
                       </p>
 
                       <p className="mt-1 text-xs text-gray-500">
-                        {chat.messages.length}{" "}
-                        messages
+                        {chat.messages.length} messages
                       </p>
                     </div>
 
@@ -382,8 +520,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ACTIONS */}
-          <div className="flex items-center gap-3">
+          <div className="hidden items-center gap-3 md:flex">
 
             <TopButton
               icon={<Zap size={16} />}
@@ -436,14 +573,12 @@ export default function DashboardPage() {
                 </motion.div>
 
                 <h2 className="mt-8 text-5xl font-black">
-                  What would you like to
-                  create today?
+                  Create cinematic AI experiences
                 </h2>
 
                 <p className="mt-6 text-lg text-gray-400">
-                  Generate cinematic AI
-                  videos, realistic voices,
-                  prompts and more.
+                  Generate videos, prompts,
+                  concepts, visuals and AI content.
                 </p>
               </div>
             )}
@@ -468,7 +603,6 @@ export default function DashboardPage() {
                         : "justify-start"
                     }`}
                   >
-
                     <div
                       className={`flex max-w-2xl gap-4 rounded-3xl border p-5 ${
                         msg.role === "user"
@@ -476,11 +610,10 @@ export default function DashboardPage() {
                           : "border-white/10 bg-white/5"
                       }`}
                     >
-
                       <div className="mt-1">
                         {msg.role ===
                         "assistant" ? (
-                          <Bot className="text-cyan-400" />
+                          <Wand2 className="text-cyan-400" />
                         ) : (
                           <User className="text-white" />
                         )}
@@ -512,7 +645,6 @@ export default function DashboardPage() {
                   }}
                   className="flex justify-start"
                 >
-
                   <div className="flex items-center gap-4 rounded-3xl border border-white/10 bg-white/5 px-5 py-4">
 
                     <Bot className="text-cyan-400" />
@@ -544,7 +676,7 @@ export default function DashboardPage() {
                   onChange={(e) =>
                     setInput(e.target.value)
                   }
-                  placeholder="Ask AI to generate cinematic content..."
+                  placeholder="Ask AMKAAI to generate cinematic content..."
                   className="max-h-40 min-h-[56px] flex-1 resize-none bg-transparent px-3 py-3 text-white outline-none placeholder:text-gray-500"
                   onKeyDown={(e) => {
                     if (
@@ -567,8 +699,7 @@ export default function DashboardPage() {
               </div>
 
               <p className="mt-3 text-center text-xs text-gray-500">
-                AI can make mistakes. Verify
-                important information.
+                AMKAAI may generate inaccurate content.
               </p>
             </div>
           </div>
