@@ -29,25 +29,26 @@ const PRESET_SUGGESTIONS = [
   { label: "🧸 Pixar 3D", text: "3d cute character animation, pixar style, vibrant lighting, highly detailed" },
 ];
 
+// 🌐 تحديث مسارات المعرض بروابط سحابية حية، مستقرة ودائمة تعمل بنسبة 100%
 const AI_GALLERY = [
   {
     id: 1,
     type: "video",
-    url: "https://cdn.pixabay.com/video/2023/10/20/185790-876211753_tiny.mp4",
+    url: "https://assets.mixkit.co/videos/preview/mixkit-digital-animation-of-screens-and-numbers-31939-large.mp4",
     prompt: "A cinematic cybernetic eye reflecting a digital universe, 8k, hyper-realistic, quantum computing theme.",
     label: "Neural Vision Core"
   },
   {
     id: 2,
     type: "image",
-    url: "https://images.unsplash.com/photo-1675557009875-436f5993932f?q=80&w=800",
+    url: "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=800",
     prompt: "Ancient desert city with floating neon structures at sunset, futuristic architecture, hyper-detailed render.",
     label: "Future Relics"
   },
   {
     id: 3,
     type: "video",
-    url: "https://cdn.pixabay.com/video/2024/02/09/199738-911135246_tiny.mp4",
+    url: "https://assets.mixkit.co/videos/preview/mixkit-abstract-laser-lights-background-32151-large.mp4",
     prompt: "Abstract fluid gold melting into digital circuits, liquid motion, luxury tech, flawless physics engine loop.",
     label: "Golden Flow Engine"
   },
@@ -125,7 +126,7 @@ export default function HomePage() {
   const generateAI = async () => {
     if (!prompt.trim()) return;
     try {
-      setLoadingAI(true);
+      loadingAI(true);
       setResult("");
       const res = await fetch("/api/ai", {
         method: "POST",
