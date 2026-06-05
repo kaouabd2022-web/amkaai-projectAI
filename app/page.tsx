@@ -107,7 +107,7 @@ export default function HomePage() {
 
   const goToCheckout = async (plan: PlanType) => {
     try {
-      loadingPlan(plan);
+      setLoadingPlan(plan); // ✨ تم إصلاح الخطأ هنا بإضافة set
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -126,7 +126,7 @@ export default function HomePage() {
   const generateAI = async () => {
     if (!prompt.trim()) return;
     try {
-      setLoadingAI(true); // ✨ تم إصلاح الخطأ البرمي هنا بنجاح
+      setLoadingAI(true);
       setResult("");
       const res = await fetch("/api/ai", {
         method: "POST",
@@ -483,7 +483,7 @@ export default function HomePage() {
       <section className="relative z-10 mx-auto max-w-3xl px-6 pb-32">
         <div className="mb-12 text-center">
           <HelpCircle size={22} className="mx-auto text-cyan-400 mb-2" />
-          <p className="text-xl font-extrabold tracking-tight">System FAQ Knowledge Base</p>
+          <p className="textxl font-extrabold tracking-tight">System FAQ Knowledge Base</p>
         </div>
         <div className="space-y-3">
           {[
