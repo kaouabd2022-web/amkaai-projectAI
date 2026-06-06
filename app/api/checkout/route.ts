@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 
 export async function POST(req: Request) {
   try {
-    // 1. 🔑 جلب الجلسة السريعة والخفيفة من Clerk (لا تسبب Timeout في السيرفر)
+    // 1. 🔑 جلب الجلسة السريعة والخفيفة من Clerk (لتجنب الـ Timeout في السيرفر الحقيقي)
     const { userId, sessionClaims } = await auth();
 
     if (!userId) {
@@ -36,10 +36,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // 👤 استخراج البريد الإلكتروني مباشرة من كائن التوثيق المتوفر أونلاين
+    // 👤 استخراج البريد الإلكتروني مباشرة من كائن توثيق الجلسة الحالية
     const userEmail = sessionClaims?.email as string || "";
 
-    // 🔍 جلب سجل المستخدم من قاعدة البيانات المحلية
+    // 🔍 جلب سجل المستخدم من قاعدة البيانات المحلية للحصول على الـ Local ID
     let dbUserId = userId;
     let fallbackEmail = userEmail;
 
@@ -51,28 +51,31 @@ export async function POST(req: Request) {
       });
       if (user) {
         dbUserId = user.id;
-        if (!fallbackEmail) fallbackEmail = user.email;
+        // 🛠️ تم حل تعارض الـ TypeScript بوضع القيمة البديلة "" في حال كان الحقل نال في قاعدة البيانات
+        if (!fallbackEmail) fallbackEmail = user.email || "";
       }
     } catch (dbError) {
       console.warn("Database lookup failed, using clerkId fallback:", dbError);
     }
 
     ////////////////////////////////////////////////////////////////
-    // 🔗 🚀 هندسة الرابط الديناميكي الآمن 
+    // 🔗 🚀 هندسة الرابط الديناميكي لـ Lemon Squeezy 
     ////////////////////////////////////////////////////////////////
     const checkoutParams = new URLSearchParams();
     
     if (fallbackEmail) {
-      checkoutParams.append("checkout[email]", fallbackEmail);
+      checkoutParams.append("checkout[email]", fallbackEmail); // حقن الإيميل تلقائياً في الفاتورة
     }
     
+    // تمرير البيانات المخصصة ليعيدها الـ Webhook عند نجاح الدفع لتفعيل الحساب
     const customData = JSON.stringify({ userId: dbUserId, plan });
     checkoutParams.append("checkout[custom][user_id]", dbUserId);
     checkoutParams.append("passthrough", customData); 
 
+    // دمج المتغيرات مع الرابط الأساسي بشكل برمجى صحيح
     const finalCheckoutUrl = `${baseCheckoutUrl}${baseCheckoutUrl.includes("?") ? "&" : "?"}${checkoutParams.toString()}`;
 
-    // 📊 تسجيل محاولة الدفع المتروكة (تغليفها بـ try/catch مستقل تماماً لضمان عدم توقف الدفع)
+    // 📊 تسجيل محاولة الدفع المتروكة (تغليف ذكي لمنع أي خطأ قاعدة بيانات من تعطيل عملية الدفع)
     try {
       await db.abandonedCheckout.create({
         data: {
@@ -86,13 +89,14 @@ export async function POST(req: Request) {
       console.warn("Checkout tracking skipped inside database:", e);
     }
 
+    // إرجاع الرابط الديناميكي النهائي الجاهز للتحويل
     return NextResponse.json({
       url: finalCheckoutUrl,
     });
   } catch (error: any) {
     console.error("CRITICAL CHECKOUT ERROR:", error);
 
-    // 🔬 إرجاع تفاصيل الخطأ في الـ Response لنعرف السبب فوراً من شاشة المتصفح إذا حدث أي شيء
+    // إرجاع تفاصيل الخطأ في الـ Response لسهولة تتبعه من الـ Network في المتصفح أونلاين
     return NextResponse.json(
       {
         error: "Checkout failed",
