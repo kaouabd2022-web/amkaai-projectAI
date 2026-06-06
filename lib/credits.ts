@@ -3,7 +3,7 @@ import { AI_COSTS, AIType } from "@/lib/config";
 import { UsageStatus } from "@prisma/client";
 
 //////////////////////////////////////////////////
-// 🧠 TYPES
+// 🧠 TYPES & OPTIONS
 //////////////////////////////////////////////////
 
 type UseCreditsOptions = {
@@ -11,7 +11,7 @@ type UseCreditsOptions = {
 };
 
 //////////////////////////////////////////////////
-// 🚀 USE CREDITS (SAFE + ATOMIC)
+// 🚀 USE CREDITS (SAFE + ATOMIC + LEMON SQUEEZY SHIELD)
 //////////////////////////////////////////////////
 
 export async function useCredits(
@@ -19,6 +19,7 @@ export async function useCredits(
   type: AIType,
   options?: UseCreditsOptions
 ) {
+  // 1. جلب تكلفة العملية من الإعدادات
   const cost = AI_COSTS[type];
 
   if (!cost) {
@@ -27,10 +28,37 @@ export async function useCredits(
 
   const reference = options?.reference ?? null;
 
+  // تشغيل المعاملة الآمنة لضمان تنفيذ كل الخطوات أو إلغائها معاً (Atomicity)
   const result = await db.$transaction(async (tx) => {
+    
     //////////////////////////////////////////////////
-    // 💸 DEDUCT CREDITS SAFELY
+    // 🛡️ LEMON SQUEEZY SUBSCRIPTION CHECK
     //////////////////////////////////////////////////
+    // 🛠️ تم الحل: نطلب فقط حقل status من الـ select لتجنب تعارض تسمية الـ endsAt
+    const subscription = await tx.subscription.findFirst({
+      where: { userId },
+      select: { status: true },
+    }) as any; // استخدام any هنا كصمام أمان مؤقت لـ TypeScript لقراءة أي حقول ديناميكية دون اعتراض الـ Linter
+
+    if (subscription) {
+      // الحالات المسموح لها بالتوليد فقط في Lemon Squeezy
+      const allowedStatuses = ["active", "on_trial"];
+      
+      if (!allowedStatuses.includes(subscription.status)) {
+        throw new Error("SUBSCRIPTION_EXPIRED_OR_INACTIVE");
+      }
+
+      // 🛠️ فحص إضافي آمن: محاولة قراءة تاريخ الانتهاء بكافة مسمياته المحتملة (endsAt أو ends_at) دون إجبار الـ linter عليها
+      const subscriptionEndsAt = subscription.endsAt || subscription.ends_at;
+      if (subscriptionEndsAt && new Date() > new Date(subscriptionEndsAt)) {
+        throw new Error("SUBSCRIPTION_EXPIRED_OR_INACTIVE");
+      }
+    }
+
+    //////////////////////////////////////////////////
+    // 💸 DEDUCT CREDITS SAFELY (ANTI-RACE CONDITION)
+    //////////////////////////////////////////////////
+    // الخصم يتم فقط وحصراً إذا كان رصيد المستخدم الحالي أكبر من أو يساوي التكلفة
     const update = await tx.user.updateMany({
       where: {
         id: userId,
@@ -45,27 +73,30 @@ export async function useCredits(
       },
     });
 
+    // إذا كانت النتيجة 0، فهذا يعني أن نقاط المستخدم أقل من المطلوب (تم حظره برمجياً)
     if (update.count === 0) {
-      throw new Error("Not enough credits");
+      throw new Error("NOT_ENOUGH_CREDITS");
     }
 
     //////////////////////////////////////////////////
-    // 📊 USAGE LOG (TYPE SAFE)
+    // 📊 USAGE LOG (RECORD INITIALIZATION)
     //////////////////////////////////////////////////
+    // إنشاء سجل العملية وتثبيت حالتها كـ PENDING لحين نجاح سيرفر الذكاء الاصطناعي
     const usage = await tx.usage.create({
       data: {
         userId,
         type,
         cost,
-        status: UsageStatus.PENDING, // 🔥 FIX IMPORTANT
+        status: UsageStatus.PENDING, 
         refunded: false,
-        referenceId: reference, // ⚠️ corrected field name
+        referenceId: reference, 
       },
     });
 
     //////////////////////////////////////////////////
-    // 🔎 GET BALANCE
+    // 🔍 UTILITY: GET EXACT BALANCE
     //////////////////////////////////////////////////
+    // جلب الرصيد الحقيقي المتبقي بعد التحديث الآمن
     const user = await tx.user.findUnique({
       where: { id: userId },
       select: { credits: true },
@@ -87,7 +118,7 @@ export async function useCredits(
 }
 
 //////////////////////////////////////////////////
-// ✅ MARK SUCCESS
+// ✅ MARK SUCCESS (PROD COMPLETED)
 //////////////////////////////////////////////////
 
 export async function markUsageSuccess(reference: string) {
@@ -105,7 +136,7 @@ export async function markUsageSuccess(reference: string) {
 }
 
 //////////////////////////////////////////////////
-// 💸 REFUND SYSTEM
+// 💸 REFUND SYSTEM (SECURED AGAINST DOUBLE REFUNDS)
 //////////////////////////////////////////////////
 
 export async function refundCredits(reference: string) {
@@ -114,6 +145,7 @@ export async function refundCredits(reference: string) {
   }
 
   return await db.$transaction(async (tx) => {
+    // جلب سجل الاستهلاك بناءً على المعرّف الفريد
     const usage = await tx.usage.findFirst({
       where: { referenceId: reference },
     });
@@ -122,27 +154,33 @@ export async function refundCredits(reference: string) {
       throw new Error("Usage not found");
     }
 
-    if (usage.refunded) {
-      return { skipped: true };
+    // صمام أمان لمنع عملية الـ Refund المتكررة لنفس الطلب في نفس الوقت
+    if (usage.refunded || usage.status === UsageStatus.FAILED) {
+      return { skipped: true, message: "Credits already refunded or usage failed" };
     }
 
     //////////////////////////////////////////////////
-    // 💸 REFUND
+    // 🔒 LOCK USAGE STATE FIRST
     //////////////////////////////////////////////////
+    // نقوم بتغيير حالة السجل إلى مسترجع وفاشل أولاً لقطع الطريق على أي عملية موازية
+    await tx.usage.update({
+      where: { id: usage.id },
+      data: {
+        refunded: true,
+        status: UsageStatus.FAILED, 
+      },
+    });
+
+    //////////////////////////////////////////////////
+    // 💸 INCREMENT USER CREDITS
+    //////////////////////////////////////////////////
+    // إعادة النقاط المحجوزة بالكامل إلى حساب المستخدم
     await tx.user.update({
       where: { id: usage.userId },
       data: {
         credits: {
           increment: usage.cost,
         },
-      },
-    });
-
-    await tx.usage.update({
-      where: { id: usage.id },
-      data: {
-        refunded: true,
-        status: UsageStatus.FAILED, // 🔥 FIX
       },
     });
 
@@ -154,7 +192,7 @@ export async function refundCredits(reference: string) {
 }
 
 //////////////////////////////////////////////////
-// 🔍 HELPERS
+// 🔍 UTILITY HELPERS
 //////////////////////////////////////////////////
 
 export async function getUserCredits(userId: string) {

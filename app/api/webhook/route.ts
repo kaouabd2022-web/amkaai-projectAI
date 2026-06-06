@@ -1,47 +1,46 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { PlanType } from "@prisma/client";
+import { PLANS, getPlanFromVariant } from "@/lib/config"; // 📦 استيراد مصدر الحقيقة الموحد
+import crypto from "crypto";
 
-// 🎯 PLAN CONFIG
-const PLAN_CREDITS = {
-  PRO: 150,
-  PREMIUM: 500,
-} as const;
-
-// ⚠️ allowed events
+// ⚠️ الأحداث المدعومة والمنظمة بناءً على وظيفتها وحمايتها
 const ALLOWED_EVENTS = new Set([
-  "order_created",
-  "order_completed",
   "subscription_created",
   "subscription_updated",
   "subscription_payment_success",
+  "subscription_expired"
 ]);
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    // 🔒 1. التحقق من توقيع Lemon Squeezy لمنع أي اختراق أو طلبات وهمية
+    const rawBody = await req.text(); // قراءة النص الخام ضرورية للتحقق من التوقيع
+    const hmac = crypto.createHmac("sha256", process.env.LEMON_SQUEEZY_WEBHOOK_SECRET || "");
+    const digest = Buffer.from(hmac.update(rawBody).digest("hex"), "utf8");
+    const signature = Buffer.from(req.headers.get("X-Signature") || "", "utf8");
 
-    console.log("📩 Webhook received");
+    if (signature.length !== digest.length || !crypto.timingSafeEqual(digest, signature)) {
+      console.error("❌ Webhook unauthorized: Invalid signature");
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+
+    const body = JSON.parse(rawBody);
+    console.log("📩 Secure Webhook received");
 
     const eventName = body?.meta?.event_name;
     const eventId = body?.meta?.event_id;
 
     if (!eventName || !eventId) {
-      return NextResponse.json(
-        { error: "Invalid webhook payload" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid webhook payload" }, { status: 400 });
     }
 
-    // ❌ ignore unwanted events
+    // ❌ تجاهل الأحداث غير المهمة لتقليل استهلاك السيرفر
     if (!ALLOWED_EVENTS.has(eventName)) {
-  return NextResponse.json(
-    { ignored: true },
-    { status: 200 }
-  );
-}
+      return NextResponse.json({ ignored: true }, { status: 200 });
+    }
 
-    // 🔒 idempotency check
+    // 🔒 2. فحص التكرار (Idempotency Check) لمنع تكرار شحن النقاط لنفس الطلب
     const existingEvent = await db.webhookEvent.findUnique({
       where: { eventId },
     });
@@ -51,103 +50,148 @@ export async function POST(req: Request) {
       return NextResponse.json({ duplicate: true }, { status: 200 });
     }
 
-    // 👤 email
-    const email = body?.data?.attributes?.user_email;
+    const attributes = body?.data?.attributes;
+    const email = attributes?.user_email;
 
     if (!email) {
-      return NextResponse.json(
-        { error: "Missing user email" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing user email" }, { status: 400 });
     }
 
-   
-// 👤 find user (ONLY ONCE)
-const user = await db.user.findUnique({
-  where: { email },
-});
+    // 👤 البحث عن المستخدم في قاعدة البيانات
+    const user = await db.user.findUnique({
+      where: { email },
+    });
 
-if (!user) {
-  return NextResponse.json(
-    { error: "User not found" },
-    { status: 404 }
-  );
-}
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
 
-// 🎯 variant → plan mapping SAFE
-const variantId = body?.data?.attributes?.variant_id?.toString();
+    // 🎯 تحويل الـ Variant ID القادم إلى نوع الخطة المقابلة من ملف الـ Config
+    const variantId = attributes?.variant_id;
+    const planName = getPlanFromVariant(variantId); // يعيد "pro" أو "premium" أو null
 
-const PRO_VARIANT_ID = process.env.LEMON_SQUEEZY_PRO_VARIANT_ID;
-const PREMIUM_VARIANT_ID = process.env.LEMON_SQUEEZY_PREMIUM_VARIANT_ID;
+    if (!planName) {
+      console.log("⚠️ Unknown variant ID:", variantId);
+      return NextResponse.json({ error: "Unknown variant" }, { status: 400 });
+    }
 
-let plan: PlanType | null = null;
+    // تحويل صيغة النص لتتوافق تماماً مع الـ Enum في قاعدة البيانات (PRO, PREMIUM)
+    const dbPlan = planName.toUpperCase() as PlanType;
+    const creditsToGrant = PLANS[planName].credits;
 
-if (variantId === PRO_VARIANT_ID) plan = PlanType.PRO;
-if (variantId === PREMIUM_VARIANT_ID) plan = PlanType.PREMIUM;
+    const lemonCustomerId = attributes?.customer_id?.toString() || null;
+    const lemonSubscriptionId = body?.data?.id?.toString() || null; // معرّف الاشتراك الفريد من ليمون
+    const subscriptionStatus = attributes?.status; // الحالات: active, cancelled, expired, past_due
+    const endsAt = attributes?.ends_at ? new Date(attributes?.ends_at) : null;
 
-if (!plan) {
-  console.log("⚠️ Unknown variant:", variantId);
+    // 🔍 جلب معرّف الاشتراك الفريد من قاعدة البيانات إن وجد مسبقًا لتجنب أخطاء قيود الحقول
+    const existingSubscription = await db.subscription.findFirst({
+      where: { userId: user.id }
+    });
 
-  return NextResponse.json(
-    { error: "Unknown plan" },
-    { status: 400 }
-  );
-}
+    ////////////////////////////////////////////////////////////////
+    // 🧠 هندسة أحداث الاشتراكات (Subscription Logic Handler)
+    ////////////////////////////////////////////////////////////////
 
-// 🎯 credits mapping
-const creditsToAdd = PLAN_CREDITS[plan];
+    // الحالة الأولى: إنشاء اشتراك جديد لأول مرة (شحن أولي)
+    if (eventName === "subscription_created") {
+      await db.$transaction([
+        db.user.update({
+          where: { id: user.id },
+          data: {
+            plan: dbPlan,
+            credits: { increment: creditsToGrant }, // شحن النقاط الافتتاحية
+            lemonCustomerId,
+            lemonSubscriptionId,
+          },
+        }),
+        db.subscription.upsert({
+          where: { 
+            id: existingSubscription?.id || "non_existent_id",
+          },
+          update: { 
+            status: subscriptionStatus, 
+            ...(endsAt ? { endsAt } : {}) 
+          },
+          create: { 
+            userId: user.id, 
+            status: subscriptionStatus, 
+            
+            // 🛠️ حل المشكلة الحالي: تزويد الحقل المطلوب "plan" بشكل آمن ومرن لتغطية الـ Enum أو الـ String
+            plan: dbPlan, 
+            
+            // احتياطياً في حال كان مسمى الحقل في جدول الاشتراك هو planType
+            ...(dbPlan ? { planType: dbPlan } : {}),
 
-// 📦 lemon ids
-const lemonCustomerId =
-  body?.data?.attributes?.customer_id?.toString() || null;
+            // حشر الـ Variant ID ديناميكياً لتغطية المسميين المحتملين
+            ...(variantId ? {
+              variantId: String(variantId),
+              variant_id: String(variantId)
+            } : {}),
+            
+            // تمرير آمن لمعرف اشتراك ليمون
+            ...(lemonSubscriptionId ? {
+              lemonSubscriptionId: lemonSubscriptionId,
+              lemonSqueezyId: lemonSubscriptionId,
+            } : {}),
+            ...(endsAt ? { endsAt } : {})
+          },
+        }),
+        db.webhookEvent.create({ data: { eventId } }),
+      ]);
+      console.log(`✅ ${email} Subscribed to ${dbPlan} (+${creditsToGrant} credits)`);
+    }
 
-const lemonSubscriptionId =
-  body?.data?.attributes?.subscription_id?.toString() || null;
+    // الحالة الثانية: نجاح التجديد الشهري التلقائي (شحن الدورة الشهرية الجديدة)
+    else if (eventName === "subscription_payment_success") {
+      await db.$transaction([
+        db.user.update({
+          where: { id: user.id },
+          data: {
+            credits: { increment: creditsToGrant }, // إضافة النقاط للشهر الجديد فور نجاح الدفع
+          },
+        }),
+        db.subscription.updateMany({
+          where: { userId: user.id },
+          data: { 
+            status: "active",
+            ...(endsAt ? { endsAt: null } : {})
+          }, 
+        }),
+        db.webhookEvent.create({ data: { eventId } }),
+      ]);
+      console.log(`🔄 ${email} Subscription renewed for ${dbPlan} (+${creditsToGrant} credits)`);
+    }
 
-// 🔒 prevent duplicate subscription upgrade
-if (user.plan === plan) {
-  console.log("⚠️ User already on this plan");
+    // الحالة الثالثة: تحديث حالة الاشتراك أو انتهاء صلاحيته بالكامل (إيقاف وحظر)
+    else if (eventName === "subscription_updated" || eventName === "subscription_expired") {
+      const isEnded = ["expired", "unpaid", "past_due"].includes(subscriptionStatus);
 
-  return NextResponse.json({
-    ignored: true,
-    message: "Already subscribed to this plan",
-  });
-}
+      await db.$transaction([
+        db.subscription.updateMany({
+          where: { userId: user.id },
+          data: { 
+            status: subscriptionStatus,
+            ...(endsAt ? { endsAt: endsAt } : {})
+          },
+        }),
+        ...(isEnded ? [
+          db.user.update({
+            where: { id: user.id },
+            data: { plan: PlanType.FREE }
+          })
+        ] : []),
+        db.webhookEvent.create({ data: { eventId } }),
+      ]);
+      console.log(`ℹ️ ${email} Subscription updated status to: ${subscriptionStatus}`);
+    }
 
-// 💳 atomic transaction
-await db.$transaction([
-  db.user.update({
-    where: { id: user.id },
-    data: {
-      plan,
-      credits: {
-        increment: creditsToAdd,
-      },
-      lemonCustomerId,
-      lemonSubscriptionId,
-    },
-  }),
-
-  db.webhookEvent.create({
-    data: {
-      eventId,
-    },
-  }),
-]);
-
-console.log(
-  `✅ ${email} upgraded → ${plan} (+${creditsToAdd})`
-);
-
-return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true });
 
   } catch (error: any) {
     console.error("🔥 WEBHOOK ERROR:", error);
-
     return NextResponse.json(
-      {
-        error: error?.message || "Internal webhook error",
-      },
+      { error: error?.message || "Internal webhook error" },
       { status: 500 }
     );
   }

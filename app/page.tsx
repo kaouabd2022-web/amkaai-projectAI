@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image"; // ✨ تم تفعيل مكون الـ Image الذكي من Next.js لسرعة تحميل خارقة
+import Image from "next/image"; 
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation"; // 🔥 أضيفت للتوجيه البرمجي عند الشراء
+import { useAuth } from "@clerk/nextjs";   // 🔥 أضيفت لفحص حالة تسجيل الدخول فوراً
 import {
   Sparkles, Video, Mic, BarChart3, ArrowRight, Play, ShieldCheck, Zap,
-  Stars, SlidersHorizontal, Tv, Flame, Users, HelpCircle, ChevronDown,
-  CheckCircle2, Image as ImageIcon, Wand2, Maximize2, Move, AudioLines,
-  Compass, Eye, Volume2, Fingerprint, RefreshCw
+  Flame, Users, HelpCircle, ChevronDown, CheckCircle2, Image as ImageIcon, 
+  Wand2, Move, AudioLines, Compass, Tv, RefreshCw
 } from "lucide-react";
 
 /* ================= TYPES ================= */
@@ -30,40 +31,18 @@ const PRESET_SUGGESTIONS = [
   { label: "🧸 Pixar 3D", text: "3d cute character animation, pixar style, vibrant lighting, highly detailed" },
 ];
 
-// 🌐 تحديث المعرض ليعرض صور الـ AI الخاصة بك مباشرة من مجلد public/gallery
 const AI_GALLERY = [
-  {
-    id: 1,
-    type: "video",
-    url: "https://assets.mixkit.co/videos/preview/mixkit-digital-animation-of-screens-and-numbers-31939-large.mp4",
-    prompt: "A cinematic cybernetic eye reflecting a digital universe, 8k, hyper-realistic, quantum computing theme.",
-    label: "Neural Vision Core"
-  },
-  {
-    id: 2,
-    type: "image",
-    url: "/gallery/ai-image1.jpg", // 👈 صورتك الـ AI الأولى المرفوعة محلياً داخل مجلد public/gallery
-    prompt: "Ancient desert city with floating neon structures at sunset, futuristic architecture, hyper-detailed render.",
-    label: "Future Relics"
-  },
-  {
-    id: 3,
-    type: "video",
-    url: "https://assets.mixkit.co/videos/preview/mixkit-abstract-laser-lights-background-32151-large.mp4",
-    prompt: "Abstract fluid gold melting into digital circuits, liquid motion, luxury tech, flawless physics engine loop.",
-    label: "Golden Flow Engine"
-  },
-  {
-    id: 4,
-    type: "image",
-    url: "/gallery/ai-image2.jpg", // 👈 صورتك الـ AI الثانية المرفوعة محلياً داخل مجلد public/gallery
-    prompt: "Astronaut walking through a forest of bioluminescent plants on a remote planet, cinematic depth of field.",
-    label: "Xeno Flora Matrix"
-  }
+  { id: 1, type: "image", url: "/gallery/ai-image-1.png", prompt: "Ancient historic palace with beautiful architecture during a golden sunset, hyper-detailed render.", label: "Ancient Palace Core" },
+  { id: 2, type: "image", url: "/gallery/ai-image-2.png", prompt: "Ancient desert city situated on mountains at sunset, futuristic architecture, cinematic lighting.", label: "Future Relics" },
+  { id: 3, type: "image", url: "/gallery/ai-image-3.png", prompt: "Futuristic electric sports car driving on a high-tech city highway surrounded by neon skyscrapers.", label: "Golden Flow Engine" },
+  { id: 4, type: "image", url: "/gallery/ai-image-4.png", prompt: "A massive futuristic coastal metropolis with towering skyscrapers stretching into the ocean at dusk.", label: "Xeno Flora Matrix" }
 ];
 
-/* ================= MAIN PAGE ================= */
+/* ================= MAIN PAGE ================= */ 
 export default function HomePage() {
+  const { isSignedIn } = useAuth(); // 🔥 فحص هل المستخدم مسجل دخول حالياً (true/false)
+  const router = useRouter();       // 🔥 محرك التوجيه لصفحات الدخول
+
   const [visitors, setVisitors] = useState(1482);
   const [online, setOnline] = useState(34);
   const [loadingPlan, setLoadingPlan] = useState<PlanType | null>(null);
@@ -78,7 +57,7 @@ export default function HomePage() {
   const [creativity, setCreativity] = useState<number>(0.75);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
 
-  // EXTRA UNMATCHED POWER STATES (WORLD-CLASS ENGINE)
+  // EXTRA STATES
   const [cameraMove, setCameraMove] = useState<CameraMoveType>("zoom-in");
   const [motionBrushActive, setMotionBrushActive] = useState(false);
   const [faceLockStrength, setFaceLockStrength] = useState(0.90);
@@ -106,7 +85,14 @@ export default function HomePage() {
     return () => window.removeEventListener("mousemove", move);
   }, []);
 
+  // 🔥 تعديل منطق الشراء: إذا لم يكن مسجلاً، يتم نقله لصفحة sign-in أولاً
   const goToCheckout = async (plan: PlanType) => {
+    if (!isSignedIn) {
+      // بعد تسجيل الدخول بنجاح، Clerk سيعيده تلقائياً لصفحة الأسعار لإتمام الشراء
+      router.push("/sign-in?redirect_url=/pricing");
+      return;
+    }
+
     try {
       setLoadingPlan(plan);
       const res = await fetch("/api/checkout", {
@@ -124,8 +110,15 @@ export default function HomePage() {
     }
   };
 
+  // 🔥 حماية محاكي الذكاء الاصطناعي على صفحة الهبوط
   const generateAI = async () => {
     if (!prompt.trim()) return;
+
+    if (!isSignedIn) {
+      router.push("/sign-in?redirect_url=/#studio");
+      return;
+    }
+
     try {
       setLoadingAI(true);
       setResult("");
@@ -153,7 +146,7 @@ export default function HomePage() {
       {/* 🌈 TRACKING CURSOR GLOW */}
       <div id="cursor-glow" className="pointer-events-none fixed z-0 h-[450px] w-[450px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-r from-cyan-500/5 to-indigo-500/5 blur-[120px] hidden md:block animate-pulse" />
 
-      {/* GLOBAL HEADER HEADER */}
+      {/* GLOBAL HEADER */}
       <header className="sticky top-0 z-50 border-b border-white/5 bg-[#030303]/70 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
@@ -171,17 +164,22 @@ export default function HomePage() {
           </nav>
 
           <div className="flex items-center gap-3">
-            <Link href="/sign-in" className="hidden rounded-xl border border-white/5 bg-white/5 px-4 py-2 text-xs font-bold text-gray-300 transition hover:bg-white/10 md:flex uppercase tracking-wider">
-              Login
-            </Link>
-            <Link href="/dashboard" className="group flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-500 px-5 py-2 text-xs font-black text-black transition hover:opacity-95 shadow-[0_0_25px_rgba(6,182,212,0.25)] uppercase tracking-wider">
-              Console <ArrowRight size={13} className="transition group-hover:translate-x-0.5" />
+            {/* 🔥 التغيير الذكي: إخفاء زر Login إذا كان الشخص مسجلاً بالفعل لتوفير مساحة نظيفة */}
+            {!isSignedIn && (
+              <Link href="/sign-in" className="rounded-xl border border-white/5 bg-white/5 px-4 py-2 text-xs font-bold text-gray-300 transition hover:bg-white/10 flex uppercase tracking-wider">
+                Login
+              </Link>
+            )}
+            
+            {/* 🔥 التغيير الذكي: إذا كان مسجل دخول يكتب له كونسول، وإذا لم يكن مسجل يكتب له "ابدأ مجاناً" ويوجهه للتسجيل */}
+            <Link href={isSignedIn ? "/dashboard" : "/sign-up"} className="group flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-500 px-5 py-2 text-xs font-black text-black transition hover:opacity-95 shadow-[0_0_25px_rgba(6,182,212,0.25)] uppercase tracking-wider">
+              {isSignedIn ? "Console" : "Get Started Free"} <ArrowRight size={13} className="transition group-hover:translate-x-0.5" />
             </Link>
           </div>
         </div>
       </header>
 
-      {/* HERO HERO SECTION */}
+      {/* HERO SECTION */}
       <section className="relative z-10 mx-auto flex max-w-7xl flex-col items-center px-6 pb-16 pt-28 text-center">
         <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="mb-6 flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-4 py-1.5 text-[11px] font-bold text-cyan-300 tracking-wide uppercase backdrop-blur-md">
           <Flame size={12} className="text-orange-400 animate-pulse" />
@@ -203,17 +201,15 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ================= SECTION: NEXT-GEN EXTENDED STUDIO DEMO ================= */}
+      {/* STUDIO DEMO SECTION */}
       <section id="studio" className="relative z-10 mx-auto max-w-7xl px-6 pb-32">
-        <motion.div className="grid lg:grid-cols-12 gap-6 rounded-3xl border border-white/5 bg-[#060608]/90 p-6 shadow-3xl backdrop-blur-3xl">
+        <div className="grid lg:grid-cols-12 gap-6 rounded-3xl border border-white/5 bg-[#060608]/90 p-6 shadow-3xl backdrop-blur-3xl">
           
-          {/* CONTROL TOWER (Left Panel - 4 Columns) */}
+          {/* CONTROL TOWER */}
           <div className="lg:col-span-4 border-r border-white/5 lg:pr-6 space-y-6">
-            
-            {/* 1. Pipeline Node Type */}
             <div>
               <div className="flex items-center gap-1.5 mb-2">
-                <SlidersHorizontal size={13} className="text-cyan-400" />
+                <span className="text-cyan-400">⚙️</span>
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Pipeline Engine</label>
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -225,7 +221,6 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* 2. Virtual Camera Rig Controls (Unmatched Power Option) */}
             {type === "video" && (
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
@@ -247,11 +242,10 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* 3. Advanced Face Lock & Physics Layers */}
             <div>
               <div className="flex justify-between items-center mb-2">
                 <div className="flex items-center gap-1.5">
-                  <Fingerprint size={13} className="text-emerald-400" />
+                  <span className="text-emerald-400">👤</span>
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Persistent Face Lock</label>
                 </div>
                 <span className="text-[11px] font-mono text-emerald-400">{Math.round(faceLockStrength * 100)}%</span>
@@ -259,7 +253,6 @@ export default function HomePage() {
               <input type="range" min="0.5" max="1" step="0.05" value={faceLockStrength} onChange={(e) => setFaceLockStrength(parseFloat(e.target.value))} className="w-full accent-emerald-500 bg-white/5 h-1 rounded-lg cursor-pointer" />
             </div>
 
-            {/* 4. Aspect Ratio Setup */}
             {type !== "voice" && (
               <div>
                 <label className="text-[10px] font-black text-gray-400 block mb-2 uppercase tracking-wider">Aspect Architecture</label>
@@ -273,7 +266,6 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* 5. Inversion Guidance */}
             <div>
               <div className="flex justify-between items-center mb-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Guidance Inversion Strength</label>
@@ -283,7 +275,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* MONITOR STAGE (Right Panel - 8 Columns) */}
+          {/* MONITOR STAGE */}
           <div className="lg:col-span-8 flex flex-col justify-between space-y-4">
             <div className="space-y-2">
               <div className="relative">
@@ -302,7 +294,6 @@ export default function HomePage() {
                 </button>
               </div>
 
-              {/* QUICK SUGGESTIONS CHIPS */}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap gap-1.5">
                   {PRESET_SUGGESTIONS.map((chip, idx) => (
@@ -311,20 +302,17 @@ export default function HomePage() {
                     </button>
                   ))}
                 </div>
-                {/* Motion Brush Feature Active State */}
                 <button onClick={() => setMotionBrushActive(!motionBrushActive)} className={`text-[9px] flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold border transition ${motionBrushActive ? "bg-amber-500 border-amber-400 text-black shadow-md" : "bg-white/5 border-white/5 text-gray-400"}`}>
                   <Move size={10} /> Motion Brush {motionBrushActive ? "ON" : "OFF"}
                 </button>
               </div>
             </div>
 
-            {/* SCREEN MONITOR DISPLAY CONTAINER */}
             <div className="relative min-h-[280px] rounded-2xl border border-white/5 bg-[#030304] flex flex-col items-center justify-center p-4 overflow-hidden shadow-inner">
               <div className="absolute top-3 left-3 flex items-center gap-1.5 text-[9px] uppercase font-mono tracking-widest text-gray-500 bg-white/5 px-2.5 py-1 rounded-md border border-white/5">
                 <Tv size={11} className="text-cyan-400" /> Output Node Frame Buffer
               </div>
 
-              {/* Live Audio Generated Sync Status */}
               <div className="absolute top-3 right-3 flex items-center gap-1.5">
                 <button onClick={() => setGenerateSoundFx(!generateSoundFx)} className={`text-[8px] font-mono px-2 py-0.5 rounded border uppercase transition ${generateSoundFx ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400" : "bg-transparent border-white/5 text-gray-600"}`}>
                   {generateSoundFx ? "🔊 AI Sound FX Sync Enabled" : "🔇 No Audio Track"}
@@ -357,7 +345,6 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* WORLD CLASS POWER FEATURE: AI AUDIO TRACK TIMELINE VIEW */}
               <div className="absolute bottom-2 inset-x-2 bg-black/80 border border-white/5 rounded-xl p-2 flex items-center gap-3 backdrop-blur-md">
                 <div className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded text-[8px] uppercase tracking-wider font-mono font-bold text-gray-400">
                   <AudioLines size={10} className="text-cyan-400 animate-pulse" /> Timeline.01
@@ -371,13 +358,13 @@ export default function HomePage() {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
         <div className="mt-4 flex items-center justify-center gap-1.5 text-[10px] font-mono text-zinc-600">
           <ShieldCheck size={12} className="text-cyan-500/60" /> Secure payment gateways layered via Lemon Squeezy Merchant Global Node.
         </div>
       </section>
 
-      {/* ================= SECTION: HOLOGRAPHIC AI SHOWCASE GRID ================= */}
+      {/* HOLOGRAPHIC AI SHOWCASE GRID */}
       <section id="showcase" className="relative z-10 mx-auto max-w-7xl px-6 pb-32">
         <div className="flex flex-col items-center justify-center mb-12 text-center">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-cyan-500/20 bg-cyan-500/5 text-[10px] uppercase font-black text-cyan-400 tracking-widest mb-3">
@@ -389,33 +376,22 @@ export default function HomePage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {AI_GALLERY.map((item) => (
-            <motion.div
+            <div
               key={item.id}
               onMouseEnter={() => setHoveredGalleryId(item.id)}
               onMouseLeave={() => setHoveredGalleryId(null)}
               className="relative group rounded-2xl overflow-hidden border border-white/5 bg-zinc-950 aspect-[3/4] cursor-pointer shadow-2xl"
             >
-              {/* Media Dispatcher - تم تعديل الصور هنا لتعمل بمكون Image لسرعة فائقة وثبات في البناء */}
-              {item.type === "video" ? (
-                <video 
-                  src={item.url} 
-                  muted 
-                  loop 
-                  autoPlay 
-                  playsInline
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-60 group-hover:opacity-100"
-                />
-              ) : (
+              <div className="relative w-full h-full">
                 <Image 
                   src={item.url} 
                   alt={item.label}
                   fill
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-60 group-hover:opacity-100"
+                  className="object-cover transition-transform duration-700 group-hover:scale-105 opacity-60 group-hover:opacity-100"
                 />
-              )}
+              </div>
 
-              {/* Badges */}
               <div className="absolute top-4 left-4 z-20">
                 <span className="px-2.5 py-1 rounded-md bg-black/60 backdrop-blur-md text-[9px] font-mono font-bold uppercase tracking-wider flex items-center gap-1 border border-white/5">
                   {item.type === "video" ? <Video size={10} className="text-cyan-400" /> : <ImageIcon size={10} className="text-indigo-400" />}
@@ -423,14 +399,13 @@ export default function HomePage() {
                 </span>
               </div>
 
-              {/* Hover Frame Buffer Information */}
               <motion.div 
                 animate={{ 
                   opacity: hoveredGalleryId === item.id ? 1 : 0, 
                   y: hoveredGalleryId === item.id ? 0 : 15 
                 }}
                 transition={{ duration: 0.2 }}
-                className="absolute inset-0 bg-gradient-to-t from-black via-black/90 to-transparent p-5 flex flex-col justify-end text-left z-10"
+                className="absolute inset-0 bg-gradient-to-t from-black via-black/90 to-transparent p-5 flex flex-col justify-end text-left z-10 pointer-events-none"
               >
                 <p className="text-cyan-400 text-[9px] font-black uppercase tracking-wider mb-1 font-mono">Prompt Sequence</p>
                 <p className="text-[11px] text-gray-300 font-light line-clamp-4 mb-4 leading-relaxed italic">
@@ -443,12 +418,12 @@ export default function HomePage() {
                   </span>
                 </div>
               </motion.div>
-            </motion.div>
+            </div>
           ))}
         </div>
       </section>
 
-      {/* ================= SECTION: FEATURES HUB ================= */}
+      {/* FEATURES HUB */}
       <section id="features" className="relative z-10 mx-auto grid max-w-7xl gap-6 px-6 pb-32 md:grid-cols-4">
         <Feature icon={<Sparkles size={16} />} title="Spatial 3D Images" text="Synthesis framework configured to build immaculate depths and highly clean mesh surfaces." />
         <Feature icon={<Mic size={16} />} title="Vocal Tonal Layering" text="Multi-accented human speech parameters with synthetic emotion mapping frequencies." />
@@ -456,7 +431,7 @@ export default function HomePage() {
         <Feature icon={<BarChart3 size={16} />} title="Telemetry Console" text="Tracks compute units, active nodes, history chains, and model iteration sequences live." />
       </section>
 
-      {/* ================= SECTION: PRICING PLANS ================= */}
+      {/* PRICING PLANS */}
       <section id="pricing" className="relative z-10 mx-auto max-w-5xl px-6 pb-32">
         <div className="mb-14 text-center">
           <h2 className="text-xs font-black tracking-[0.2em] text-cyan-400 uppercase mb-2">Computational Costing</h2>
@@ -484,11 +459,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ================= SECTION: INTERACTIVE FAQ ================= */}
+      {/* INTERACTIVE FAQ */}
       <section className="relative z-10 mx-auto max-w-3xl px-6 pb-32">
         <div className="mb-12 text-center">
           <HelpCircle size={22} className="mx-auto text-cyan-400 mb-2" />
-          <p className="textxl font-extrabold tracking-tight">System FAQ Knowledge Base</p>
+          <p className="text-xl font-extrabold tracking-tight">System FAQ Knowledge Base</p>
         </div>
         <div className="space-y-3">
           {[

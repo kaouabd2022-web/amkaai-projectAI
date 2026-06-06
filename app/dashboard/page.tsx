@@ -1,13 +1,12 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import {
-  Send, Plus, LifeBuoy, X, Crown, Settings, Bot, User, Zap, BarChart3,
-  CreditCard, PanelLeft, Trash2, Wand2, ImageIcon, Video, Mic, SlidersHorizontal,
-  Tv, Flame, Gauge, Upload, Sparkles, Move, Dices, Download, Brush, 
-  Layers, Columns, Play, Pause, Layers3, RefreshCw, Eye
+  Send, Plus, LifeBuoy, X, Settings, Bot, User, PanelLeft, Trash2, Wand2, 
+  ImageIcon, Video, Mic, SlidersHorizontal, Tv, Flame, Upload, Sparkles, 
+  Move, Download, Brush, Columns, Play, Pause, Layers3
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -83,32 +82,45 @@ export default function DashboardPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { if (!chats.length) createChat(); }, []);
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chats, loading]);
+  // تغليف دالة إنشاء المحادثة بـ useCallback لمنع إعادة إنشائها مع كل عملية ريندر ودخول التطبيق في ريندر لانهائي
+  const createChat = useCallback(() => {
+    const chat: Chat = { id: crypto.randomUUID(), title: "New Production Concept", createdAt: Date.now(), messages: [] };
+    setChats((prev) => [chat, ...prev]);
+    setActiveChatId(chat.id);
+    setUploadedImage(null);
+  }, []);
+
+  // التحقق الآمن لإنشاء المحادثة الأولى عند تحميل الصفحة
+  useEffect(() => { 
+    if (chats.length === 0) {
+      createChat(); 
+    }
+  }, [chats.length, createChat]);
+
+  useEffect(() => { 
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" }); 
+  }, [chats, loading]);
 
   const activeChat = useMemo(() => chats.find((c) => c.id === activeChatId), [chats, activeChatId]);
   const lastMessage = activeChat?.messages[activeChat.messages.length - 1];
 
-  // Simulation of async background server render ticking
+  // محاكي عمليات الـ Rendering الخلفية مع منع حدوث Stale Closures (استخدام الحالات القديمة)
   useEffect(() => {
     const interval = setInterval(() => {
       setRenderQueue(prev => prev.map(job => {
         if (job.status === "rendering" && job.progress < 100) {
           const nextProgress = job.progress + Math.floor(Math.random() * 8) + 2;
-          return { ...job, progress: nextProgress >= 100 ? 100 : nextProgress, status: nextProgress >= 100 ? "completed" : "rendering" };
+          return { 
+            ...job, 
+            progress: nextProgress >= 100 ? 100 : nextProgress, 
+            status: nextProgress >= 100 ? "completed" : "rendering" 
+          };
         }
         return job;
       }));
     }, 2000);
     return () => clearInterval(interval);
   }, []);
-
-  const createChat = () => {
-    const chat: Chat = { id: crypto.randomUUID(), title: "New Production Concept", createdAt: Date.now(), messages: [] };
-    setChats((prev) => [chat, ...prev]);
-    setActiveChatId(chat.id);
-    setUploadedImage(null);
-  };
 
   const deleteChat = (id: string) => {
     const filtered = chats.filter((c) => c.id !== id);
@@ -117,7 +129,7 @@ export default function DashboardPage() {
   };
 
   const handlePresetApply = (style: PresetStyle) => {
-    setInput((prev) => prev.trim() + style.promptSuffix);
+    setInput((prev) => `${prev.trim()} ${style.promptSuffix}`.trim());
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -189,7 +201,7 @@ export default function DashboardPage() {
                 <Link href="/" className="bg-gradient-to-r from-cyan-400 via-teal-400 to-indigo-400 bg-clip-text text-lg font-black tracking-tighter text-transparent flex items-center gap-2">
                   <Flame size={16} className="text-cyan-400 animate-pulse" /> AMKAAI STUDIO PRO
                 </Link>
-                <button onClick={() => setSidebarOpen(false)} className="text-gray-500 hover:text-white transition"><PanelLeft size={16} /></button>
+                <button onClick={() => setSidebarOpen(false)} className="text-gray-500 hover:text-white transition" aria-label="Collapse sidebar"><PanelLeft size={16} /></button>
               </div>
 
               <div className="p-4">
@@ -228,7 +240,17 @@ export default function DashboardPage() {
                     <div className="truncate pr-2">
                       <p className="text-xs font-medium text-gray-300 truncate">{chat.title}</p>
                     </div>
-                    <button onClick={(e) => { e.stopPropagation(); deleteChat(chat.id); }} className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-red-400 transition"><Trash2 size={12} /></button>
+                    {/* استخدام e.stopPropagation لمنع انتقال حدث النقر إلى المحادثة نفسها عند رغبة المستخدم بحذفها */}
+                    <button 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        deleteChat(chat.id); 
+                      }} 
+                      className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-red-400 transition"
+                      aria-label="Delete production concept"
+                    >
+                      <Trash2 size={12} />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -249,7 +271,7 @@ export default function DashboardPage() {
         
         <header className="flex items-center justify-between border-b border-white/5 bg-[#070709]/70 px-6 py-3.5 backdrop-blur-md">
           <div className="flex items-center gap-3">
-            {!sidebarOpen && <button onClick={() => setSidebarOpen(true)} className="text-gray-400 hover:text-white transition"><PanelLeft size={16} /></button>}
+            {!sidebarOpen && <button onClick={() => setSidebarOpen(true)} className="text-gray-400 hover:text-white transition" aria-label="Expand sidebar"><PanelLeft size={16} /></button>}
             <h1 className="text-xs font-bold tracking-wider uppercase flex items-center gap-1.5 text-gray-300">
               Production Workspace <span className="text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-2 py-0.2 rounded-md font-mono">v3.2 Core</span>
             </h1>
@@ -300,7 +322,7 @@ export default function DashboardPage() {
                   {uploadedImage ? (
                     <div className="relative w-full h-16 rounded-lg overflow-hidden">
                       <img src={uploadedImage} alt="Reference Base" className="w-full h-full object-cover" />
-                      <button onClick={(e) => { e.stopPropagation(); setUploadedImage(null); }} className="absolute top-1 right-1 bg-black/80 p-1 rounded-full text-gray-400 hover:text-white"><X size={10} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); setUploadedImage(null); }} className="absolute top-1 right-1 bg-black/80 p-1 rounded-full text-gray-400 hover:text-white" aria-label="Clear uploaded matrix image"><X size={10} /></button>
                     </div>
                   ) : (
                     <p className="text-[10px] text-gray-400 font-mono">Inject base frame image to locked sequence</p>
@@ -419,7 +441,8 @@ export default function DashboardPage() {
                           <span className="absolute bottom-3 right-3 text-[9px] font-mono bg-black/70 px-2 py-0.5 text-cyan-400 rounded border border-white/5">Render B</span>
                         </div>
                         
-                        <div className="absolute inset-0 bg-zinc-900" style={{ clipPath: `polygon(0 0, ${compareSlider}% 0, ${compareSlider}% 100, 0 100%)` }}>
+                        {/* تصحيح خطأ clipPath المفقود فيه رمز الـ % لمتصفحات الـ Webkit */}
+                        <div className="absolute inset-0 bg-zinc-900" style={{ clipPath: `polygon(0 0, ${compareSlider}% 0, ${compareSlider}% 100%, 0 100%)` }}>
                           <img src="https://images.unsplash.com/photo-1614741118887-7a4ee193a5fa?q=80&w=800" alt="original sample base" className="w-full h-full object-contain" />
                           <span className="absolute bottom-3 left-3 text-[9px] font-mono bg-black/70 px-2 py-0.5 text-gray-400 rounded border border-white/5">Source A</span>
                         </div>
@@ -477,7 +500,7 @@ export default function DashboardPage() {
                 <div className="bg-[#070709] border border-white/5 rounded-xl p-3 space-y-3">
                   <div className="flex items-center justify-between text-[10px] font-mono text-gray-400">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setIsPlayingTimeline(!isPlayingTimeline)} className="p-1 hover:bg-white/5 rounded text-white">
+                      <button onClick={() => setIsPlayingTimeline(!isPlayingTimeline)} className="p-1 hover:bg-white/5 rounded text-white" aria-label={isPlayingTimeline ? "Pause timeline sequence" : "Play timeline sequence"}>
                         {isPlayingTimeline ? <Pause size={12} className="text-cyan-400" /> : <Play size={12} />}
                       </button>
                       <span className="text-white font-bold">Kinematic Timeline Editor</span>
@@ -492,6 +515,7 @@ export default function DashboardPage() {
                         key={frameIndex}
                         onClick={() => setActiveKeyframe(frameIndex)}
                         className={`w-3 h-3 rounded-full border transition-all z-10 ${activeKeyframe === frameIndex ? "bg-cyan-400 border-cyan-300 scale-125 shadow-[0_0_8px_rgba(34,211,238,0.6)]" : "bg-neutral-800 border-neutral-600 hover:border-neutral-400"}`}
+                        aria-label={`Select keyframe ${frameIndex}`}
                       />
                     ))}
                   </div>
@@ -559,10 +583,15 @@ export default function DashboardPage() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder={`Describe your cinematic visual parameters for this ${activeType} prompt sequence...`}
-                    className="max-h-24 min-h-[44px] flex-1 resize-none bg-transparent px-3 py-1.5 text-xs outline-none text-white placeholder:text-gray-700"
-                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); executeGeneration(); } }}
+                    className="max-h-24 min-h-[44px] flex-1 resize-none bg-transparent px-3 py-1.5 text-xs outline-none text-white placeholder:text-gray-700 font-mono"
+                    onKeyDown={(e) => { 
+                      if (e.key === "Enter" && !e.shiftKey) { 
+                        e.preventDefault(); 
+                        executeGeneration(); 
+                      } 
+                    }}
                   />
-                  <button onClick={executeGeneration} disabled={loading || !input.trim()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500 text-black hover:opacity-90 transition disabled:opacity-20 shadow-md">
+                  <button onClick={executeGeneration} disabled={loading || !input.trim()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500 text-black hover:opacity-90 transition disabled:opacity-20 shadow-md" aria-label="Execute generation sequence">
                     <Send size={13} />
                   </button>
                 </div>
@@ -592,7 +621,7 @@ export default function DashboardPage() {
                 <input value={supportInput} onChange={e => setSupportInput(e.target.value)} className="flex-1 rounded-xl bg-black border border-white/5 p-3 text-xs outline-none text-white font-mono" placeholder="Inquire cluster debug parameters..." />
                 <button onClick={() => setSupportOpen(false)} className="rounded-xl bg-cyan-500 px-5 text-xs font-bold text-black">Log Ticket</button>
               </div>
-              <button onClick={() => setSupportOpen(false)} className="absolute right-4 top-4 text-gray-500 hover:text-white"><X size={16} /></button>
+              <button onClick={() => setSupportOpen(false)} className="absolute right-4 top-4 text-gray-500 hover:text-white" aria-label="Close support dispatch dashboard"><X size={16} /></button>
             </div>
           </motion.div>
         )}

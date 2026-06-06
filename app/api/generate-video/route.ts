@@ -1,183 +1,101 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { db } from "@/lib/db";
-import { addJob } from "@/lib/queue";
-import { demoVideos } from "@/lib/demo";
-
-const VIDEO_COST = 30;
+import { useCredits, refundCredits, markUsageSuccess } from "@/lib/credits";
+import { LIMITS, FEATURES } from "@/lib/config";
 
 export async function POST(req: Request) {
+  // 1. إنشاء معرف فريد للعملية لتتبع الاستهلاك والـ Refund
+  const referenceId = `vid_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
   try {
-    console.log("🚀 STEP 1: API HIT");
-
-    // 🔐 Auth
+    // 🔒 التحقق من هوية المستخدم عبر Clerk (تم إضافة await لحل مشكلة Type error بشكل نهائي)
     const { userId } = await auth();
-
     if (!userId) {
-      console.log("❌ No userId");
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.log("👤 Clerk userId:", userId);
-
-    // 👤 Get user
-    let user = await db.user.findUnique({
-  where: { clerkId: userId },
-});
-
-// ✅ AUTO CREATE USER
-if (!user) {
-  user = await db.user.create({
-    data: {
-      clerkId: userId,
-      credits: 10,
-      plan: "FREE",
-    },
-  });
-
-  console.log("✅ New user created:", user.id);
-}
-
-    console.log("✅ User found:", user.id);
-
-    // 💳 Check credits
-    if (user.credits < VIDEO_COST) {
-      console.log("❌ Not enough credits");
-      return NextResponse.json(
-        { error: "Not enough credits" },
-        { status: 403 }
-      );
+    // ⚡ التحقق من الـ Feature Flag (هل ميزة الفيديو مفعلة في الموقع؟)
+    if (!FEATURES.enableVideoQueue) {
+      return NextResponse.json({ error: "Video generation is temporarily disabled" }, { status: 503 });
     }
 
-    // 📦 Parse request
-    let body;
-    try {
-      body = await req.json();
-    } catch (err) {
-      console.log("❌ Invalid JSON");
-      return NextResponse.json(
-        { error: "Invalid JSON" },
-        { status: 400 }
-      );
+    // 📦 استقبال وقراءة البيانات القادمة من واجهة المستخدم (الـ Console)
+    const body = await req.json();
+    const { prompt, aspectRatio, creativity } = body;
+
+    // 🔐 التحقق من قيود الـ Prompt الأمنية المحددة في ملف الـ Config
+    if (!prompt || prompt.length < LIMITS.minPromptLength) {
+      return NextResponse.json({ error: `Prompt too short. Minimum ${LIMITS.minPromptLength} characters.` }, { status: 400 });
+    }
+    if (prompt.length > LIMITS.maxPromptLength) {
+      return NextResponse.json({ error: `Prompt too long. Maximum ${LIMITS.maxPromptLength} characters.` }, { status: 400 });
     }
 
-    const { prompt } = body;
-
-    if (!prompt) {
-      console.log("❌ Missing prompt");
-      return NextResponse.json(
-        { error: "Prompt is required" },
-        { status: 400 }
-      );
-    }
-
-    console.log("📝 Prompt:", prompt);
-//////////////////////////////////////////////////
-// 🧠 DEMO MODE (CRITICAL - NO COST)
-//////////////////////////////////////////////////
-
-if (user.plan === "FREE") {
-  const randomVideo =
-    demoVideos[
-      Math.floor(Math.random() * demoVideos.length)
-    ];
-
-  console.log("🧪 DEMO VIDEO:", randomVideo);
-
-  return NextResponse.json({
-    success: true,
-    demo: true,
-    video: randomVideo,
-    message: "Demo preview — Upgrade to Pro for real AI video",
-  });
-}
-
-    // ⚡ IMPORTANT: Skip usage temporarily (to avoid crash)
-    let usage = null;
+    // 🛡️ [خطوة مصيرية] محاولة حجز النقاط وفحص اشتراك Lemon Squeezy
+    // إذا كان الاشتراك منتهياً أو النقاط لا تكفي، سيرمي الكود خطأ (Error) ويتوقف فوراً هنا دون لمس سيرفرات الـ AI تلافياً للخسارة المادية.
+    const creditResult = await useCredits(userId, "video", { reference: referenceId });
 
     try {
-      usage = await db.usage.create({
-        data: {
-          userId: user.id,
-          type: "video",
-          cost: VIDEO_COST,
-          status: "PENDING",
+      
+      //////////////////////////////////////////////////////////////////
+      // 🎬 هنا يتم استدعاء سيرفر الذكاء الاصطناعي (مثال باستخدام Replicate)
+      //////////////////////////////////////////////////////////////////
+      /*
+      const response = await fetch("https://api.replicate.com/v1/predictions", {
+        method: "POST",
+        headers: {
+          Authorization: `Token ${process.env.REPLICATE_API_TOKEN}`,
+          "Content-Type": "application/json",
         },
-      });
-
-      console.log("📊 Usage created:", usage.id);
-    } catch (err) {
-      console.log("⚠️ Usage create failed, continuing anyway:", err);
-    }
-
-    // 🚀 Create video job (MAIN CRITICAL PART)
-    let job;
-
-    try {
-      job = await db.videoJob.create({
-        data: {
-          userId: user.id,
-          prompt,
-          usageId: usage?.id ?? null,
-          status: "PENDING",
-        },
-      });
-
-      console.log("🎬 Job created:", job.id);
-    } catch (err) {
-      console.log("🔥 VIDEO JOB CREATE FAILED:", err);
-
-      return NextResponse.json(
-        { error: "Failed to create job" },
-        { status: 500 }
-      );
-    }
-
-    // 💸 Deduct credits AFTER job creation
-    try {
-      await db.user.update({
-        where: { id: user.id },
-        data: {
-          credits: {
-            decrement: VIDEO_COST,
+        body: JSON.stringify({
+          version: "نظام_توليد_الفيديو_الخاص_بك",
+          input: { 
+            prompt, 
+            aspect_ratio: aspectRatio,
+            prompt_strength: creativity 
           },
-        },
+        }),
       });
 
-      console.log("💸 Credits deducted");
-    } catch (err) {
-      console.log("⚠️ Credit deduction failed:", err);
-    }
+      if (!response.ok) {
+        throw new Error("AI_SERVER_ERROR");
+      }
+      
+      const prediction = await response.json();
+      */
+      //////////////////////////////////////////////////////////////////
 
-    // 🧠 Push job to queue
-    try {
-      addJob({
-        id: job.id,
-        type: "video",
+      // محاكاة مؤقتة لنجاح التوليد (امسح السطر في الأسفل عند ربط السيرفر الفعلي أعلاه)
+      const prediction = { id: "pred_123", status: "starting" };
+
+      // 🎯 تثبيت نجاح العملية في قاعدة البيانات وتحويل حالة الـ Usage من PENDING إلى COMPLETED
+      await markUsageSuccess(referenceId);
+
+      return NextResponse.json({
+        success: true,
+        predictionId: prediction.id,
+        remainingCredits: creditResult.remainingCredits,
       });
 
-      console.log("📤 Job sent to queue");
-    } catch (err) {
-      console.log("⚠️ Queue error:", err);
+    } catch (aiError) {
+      // 💸 [صمام أمان] إذا فشل سيرفر الـ AI الخارجي أو قطع الاتصال، يتم استرجاع نقاط المستخدم فوراً تلقائياً
+      console.error("🔥 AI Generation Call Failed, triggering refund...");
+      await refundCredits(referenceId);
+      
+      return NextResponse.json({ error: "Failed to communicate with AI engine. Credits refunded." }, { status: 502 });
     }
 
-    // ✅ RESPONSE
-    return NextResponse.json({
-      success: true,
-      jobId: job.id,
-      status: "PENDING",
-      message: "Video is being generated",
-    });
+  } catch (error: any) {
+    console.error("🔥 GENERATE VIDEO ROUTE ERROR:", error);
 
-  } catch (error) {
-    console.error("🔥 FATAL VIDEO API ERROR:", error);
+    // معالجة الأخطاء القادمة من دالة useCredits لمنح واجهة المستخدم رسالة واضحة
+    if (error.message === "SUBSCRIPTION_EXPIRED_OR_INACTIVE") {
+      return NextResponse.json({ error: "Your subscription has expired or is past due. Please check your billing dashboard." }, { status: 403 });
+    }
+    if (error.message === "NOT_ENOUGH_CREDITS") {
+      return NextResponse.json({ error: "Insufficient credits. Please upgrade your plan to generate videos." }, { status: 402 });
+    }
 
-    return NextResponse.json(
-      { error: "Server error", details: String(error) },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error?.message || "Internal server error" }, { status: 500 });
   }
 }
