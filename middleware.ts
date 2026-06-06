@@ -1,4 +1,4 @@
-Vimport { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 // 👇 المسارات العامة
@@ -23,7 +23,7 @@ export default clerkMiddleware(async (auth, req) => {
     }
   }
 
-  // 🔁 redirect إذا user دخل sign-in وهو مسجل
+  // 🔁 redirect إذا user مسجل ودخل sign-in
   if (
     (url.pathname.startsWith("/sign-in") ||
       url.pathname.startsWith("/sign-up")) &&
@@ -37,12 +37,6 @@ export default clerkMiddleware(async (auth, req) => {
 
 export const config = {
   matcher: [
-    /*
-     ✅ هذا أهم شيء:
-     يجبر middleware يشتغل على:
-     - الصفحات
-     - API routes
-    */
     "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
