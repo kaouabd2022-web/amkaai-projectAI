@@ -10,20 +10,16 @@ const isPublicRoute = createRouteMatcher([
   "/api/webhook(.*)",
 ]);
 
-export default clerkMiddleware((auth, req) => {
-  // ❌ مهم: لا تجعل /api/checkout public
+export default clerkMiddleware(async (auth, req) => {
 
   if (!isPublicRoute(req)) {
-    auth().protect();
+    await auth.protect(); // ✅ هذا هو الحل
   }
+
 });
 
 export const config = {
   matcher: [
-    /*
-     ⚠️ هذا هو السطر السحري
-     يجبر middleware يشتغل على API
-    */
     "/((?!_next|.*\\..*).*)",
   ],
 };
