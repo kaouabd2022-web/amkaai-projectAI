@@ -1,5 +1,4 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
 
 // 👇 المسارات العامة
 const isPublicRoute = createRouteMatcher([
@@ -11,32 +10,20 @@ const isPublicRoute = createRouteMatcher([
   "/api/webhook(.*)",
 ]);
 
-export default clerkMiddleware(async (auth, req) => {
-  const { userId } = await auth();
+export default clerkMiddleware((auth, req) => {
+  // ❌ مهم: لا تجعل /api/checkout public
 
-  const url = new URL(req.url);
-
-  // 🔐 حماية كل شيء ما عدا public
   if (!isPublicRoute(req)) {
-    if (!userId) {
-      return NextResponse.redirect(new URL("/sign-in", req.url));
-    }
+    auth().protect();
   }
-
-  // 🔁 redirect إذا user مسجل ودخل sign-in
-  if (
-    (url.pathname.startsWith("/sign-in") ||
-      url.pathname.startsWith("/sign-up")) &&
-    userId
-  ) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
-  }
-
-  return NextResponse.next();
 });
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico).*)",
+    /*
+     ⚠️ هذا هو السطر السحري
+     يجبر middleware يشتغل على API
+    */
+    "/((?!_next|.*\\..*).*)",
   ],
 };
