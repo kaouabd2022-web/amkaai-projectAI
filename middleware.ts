@@ -1,26 +1,28 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-// 👇 routes لي ما تحتاج auth
+// 🎯 تحديد المسارات العامة
 const isPublicRoute = createRouteMatcher([
   "/",
-  "/sign-in(.*)",
-  "/sign-up(.*)",
   "/pricing",
   "/complete-payment",
+  "/sign-in(.*)",
+  "/sign-up(.*)",
   "/api/webhook(.*)",
+  "/api/checkout(.*)"
 ]);
 
-export default clerkMiddleware((auth, req) => {
-  // 👇 حماية كل شيء ما عدا public routes
+export default clerkMiddleware(async (auth, req) => {
+  // 🛡️ حماية المسارات الخاصة
   if (!isPublicRoute(req)) {
-    auth().protect();
+    await auth.protect(); // 👈 استخدام الكائن الممرر للدالة مباشرة بأمان
   }
 });
 
 export const config = {
   matcher: [
-    // مهم جداً: يشمل API routes
-    "/((?!_next|.*\\..*).*)",
-    "/(api|trpc)(.*)",
+    // 🛡️ الفلتر القياسي من Clerk لمنع فحص الملفات الثابتة والصور لسرعة الاستجابة
+    '/((?!_next|[^?]*\\.(?:html|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    // ⚡ إجبار الميدلوير على معالجة كافة مسارات الـ API و tRPC دائماً لكي تعمل دالة auth() أونلاين
+    '/(api|trpc)(.*)',
   ],
 };
