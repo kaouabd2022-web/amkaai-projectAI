@@ -1,20 +1,19 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-// 🎯 تحديد المسارات العامة
+// 🎯 تحديد المسارات العامة (التي لا تحتاج لتسجيل دخول مطلقاً)
 const isPublicRoute = createRouteMatcher([
   "/",
   "/pricing",
   "/complete-payment",
   "/sign-in(.*)",
   "/sign-up(.*)",
-  "/api/webhook(.*)",
-  "/api/checkout(.*)"
+  "/api/webhook(.*)" // الـ Webhook يجب أن يظل عاماً دائماً لكي تستقبله المنصات الخارجية
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
-  // 🛡️ حماية المسارات الخاصة
+  // 🛡️ إذا كان المسار ليس عاماً (مثل مسارات الـ dashboard والـ api/checkout) فقم بحمايته
   if (!isPublicRoute(req)) {
-    await auth.protect(); // 👈 استخدام الكائن الممرر للدالة مباشرة بأمان
+    await auth.protect(); // 👈 هذا يضمن تهيئة الـ auth للـ API والـ Checkout بنجاح أونلاين
   }
 });
 
