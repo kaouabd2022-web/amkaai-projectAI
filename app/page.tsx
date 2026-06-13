@@ -4,17 +4,17 @@ import Link from "next/link";
 import Image from "next/image"; 
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation"; // 🔥 أضيفت للتوجيه البرمجي عند الشراء
-import { useAuth } from "@clerk/nextjs";   // 🔥 أضيفت لفحص حالة تسجيل الدخول فوراً
+import { useRouter } from "next/navigation"; 
+import { useAuth } from "@clerk/nextjs";   
 import {
-  Sparkles, Video, Mic, BarChart3, ArrowRight, Play, ShieldCheck, Zap,
-  Flame, Users, HelpCircle, ChevronDown, CheckCircle2, Image as ImageIcon, 
-  Wand2, Move, AudioLines, Compass, Tv, RefreshCw
+  Sparkles, Video, BarChart3, ArrowRight, Play, ShieldCheck,
+  Flame, Users, HelpCircle, ChevronDown, CheckCircle2, 
+  Wand2, Move, AudioLines, Compass, Tv, RefreshCw, UserSquare2, LayoutDashboard, Settings
 } from "lucide-react";
 
 /* ================= TYPES ================= */
 type PlanType = "pro" | "premium";
-type MediaType = "image" | "video" | "voice";
+type MediaType = "video" | "avatar"; 
 type AspectRatioType = "16:9" | "9:16" | "1:1";
 type CameraMoveType = "zoom-in" | "pan-left" | "orbit-360" | "tilt-up";
 
@@ -26,22 +26,22 @@ interface PricingCardProps {
 
 /* ================= CONSTANTS & STATIC DATA ================= */
 const PRESET_SUGGESTIONS = [
-  { label: "🎬 Cinematic Drone", text: "cinematic drone shot, volumetric lighting, 8k, photorealistic" },
-  { label: "🌌 Cyberpunk Neon", text: "cyberpunk city street, neon glowing signs, rainy night, blade runner style" },
-  { label: "🧸 Pixar 3D", text: "3d cute character animation, pixar style, vibrant lighting, highly detailed" },
+  { label: "🎬 Cinematic Studio", text: "cinematic corporate presentation speaker, photorealistic avatar, studio 8k lighting" },
+  { label: "🌌 Futuristic Presenter", text: "cyberpunk news room anchor, professional avatar broadcasting, hyper-detailed" },
+  { label: "🧸 Explainer Video", text: "3d animated tutor style avatar, vibrant workspace atmosphere, highly expressive" },
 ];
 
 const AI_GALLERY = [
-  { id: 1, type: "image", url: "/gallery/ai-image-1.png", prompt: "Ancient historic palace with beautiful architecture during a golden sunset, hyper-detailed render.", label: "Ancient Palace Core" },
-  { id: 2, type: "image", url: "/gallery/ai-image-2.png", prompt: "Ancient desert city situated on mountains at sunset, futuristic architecture, cinematic lighting.", label: "Future Relics" },
-  { id: 3, type: "image", url: "/gallery/ai-image-3.png", prompt: "Futuristic electric sports car driving on a high-tech city highway surrounded by neon skyscrapers.", label: "Golden Flow Engine" },
-  { id: 4, type: "image", url: "/gallery/ai-image-4.png", prompt: "A massive futuristic coastal metropolis with towering skyscrapers stretching into the ocean at dusk.", label: "Xeno Flora Matrix" }
+  { id: 1, type: "video", url: "/gallery/ai-image-1.png", prompt: "AI Avatar explaining cryptocurrency concepts with smooth hand gestures, business suit.", label: "Crypto Avatar V1" },
+  { id: 2, type: "video", url: "/gallery/ai-image-2.png", prompt: "E-learning tutor digital human presenting mathematical models interactively.", label: "EduPresenter Core" },
+  { id: 3, type: "video", url: "/gallery/ai-image-3.png", prompt: "Cinematic marketing avatar discussing high-tech electric sports cars in a clean studio backdrop.", label: "Promo Human Matrix" },
+  { id: 4, type: "video", url: "/gallery/ai-image-4.png", prompt: "Multilingual AI support agent avatar delivering a corporate onboarding greeting message.", label: "Support Node Bot" }
 ];
 
 /* ================= MAIN PAGE ================= */ 
 export default function HomePage() {
-  const { isSignedIn } = useAuth(); // 🔥 فحص هل المستخدم مسجل دخول حالياً (true/false)
-  const router = useRouter();       // 🔥 محرك التوجيه لصفحات الدخول
+  const { isSignedIn } = useAuth(); 
+  const router = useRouter();       
 
   const [visitors, setVisitors] = useState(1482);
   const [online, setOnline] = useState(34);
@@ -85,10 +85,8 @@ export default function HomePage() {
     return () => window.removeEventListener("mousemove", move);
   }, []);
 
-  // 🔥 تعديل منطق الشراء: إذا لم يكن مسجلاً، يتم نقله لصفحة sign-in أولاً
   const goToCheckout = async (plan: PlanType) => {
     if (!isSignedIn) {
-      // بعد تسجيل الدخول بنجاح، Clerk سيعيده تلقائياً لصفحة الأسعار لإتمام الشراء
       router.push("/sign-in?redirect_url=/pricing");
       return;
     }
@@ -110,7 +108,6 @@ export default function HomePage() {
     }
   };
 
-  // 🔥 حماية محاكي الذكاء الاصطناعي على صفحة الهبوط
   const generateAI = async () => {
     if (!prompt.trim()) return;
 
@@ -135,6 +132,14 @@ export default function HomePage() {
       setLoadingAI(false);
     }
   };
+
+  // تبويبات مخصصة ومصقولة فقط للفيديو والأفاتار بدون تشتيت
+  const studioTabs = [
+    { id: "video" as MediaType, title: "AI Video", subtitle: "توليد فيديو ذكي", icon: Video, color: "text-blue-400", bgGlow: "from-blue-500/20", placeholder: "صف موضوع أو مشهد الفيديو السينمائي الذي ترغب في توليده بالتفصيل بواسطة الذكاء الاصطناعي..." },
+    { id: "avatar" as MediaType, title: "AI Avatar", subtitle: "شخصية رقمية متحدثة", icon: UserSquare2, color: "text-amber-400", bgGlow: "from-amber-500/20", placeholder: "اكتب النص أو السيناريو الكامل الذي ترغب من الشخصية الرقمية (الأفاتار) التحدث به ومحاكاته أمام الكاميرا..." },
+  ];
+
+  const currentTabInfo = studioTabs.find(t => t.id === type)!;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#030303] text-white font-sans selection:bg-cyan-500/30">
@@ -164,14 +169,12 @@ export default function HomePage() {
           </nav>
 
           <div className="flex items-center gap-3">
-            {/* 🔥 التغيير الذكي: إخفاء زر Login إذا كان الشخص مسجلاً بالفعل لتوفير مساحة نظيفة */}
             {!isSignedIn && (
               <Link href="/sign-in" className="rounded-xl border border-white/5 bg-white/5 px-4 py-2 text-xs font-bold text-gray-300 transition hover:bg-white/10 flex uppercase tracking-wider">
                 Login
               </Link>
             )}
             
-            {/* 🔥 التغيير الذكي: إذا كان مسجل دخول يكتب له كونسول، وإذا لم يكن مسجل يكتب له "ابدأ مجاناً" ويوجهه للتسجيل */}
             <Link href={isSignedIn ? "/dashboard" : "/sign-up"} className="group flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-500 px-5 py-2 text-xs font-black text-black transition hover:opacity-95 shadow-[0_0_25px_rgba(6,182,212,0.25)] uppercase tracking-wider">
               {isSignedIn ? "Console" : "Get Started Free"} <ArrowRight size={13} className="transition group-hover:translate-x-0.5" />
             </Link>
@@ -201,147 +204,196 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* STUDIO DEMO SECTION */}
+      {/* 🎛️ STUDIO CONTROL TOWER (ONLY VIDEO & AVATAR Dashboard style) */}
       <section id="studio" className="relative z-10 mx-auto max-w-7xl px-6 pb-32">
-        <div className="grid lg:grid-cols-12 gap-6 rounded-3xl border border-white/5 bg-[#060608]/90 p-6 shadow-3xl backdrop-blur-3xl">
+        <div className="w-full rounded-3xl border border-white/10 bg-[#09090d] shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[580px]">
           
-          {/* CONTROL TOWER */}
-          <div className="lg:col-span-4 border-r border-white/5 lg:pr-6 space-y-6">
-            <div>
-              <div className="flex items-center gap-1.5 mb-2">
-                <span className="text-cyan-400">⚙️</span>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Pipeline Engine</label>
+          {/* SIDEBAR NAVIGATION */}
+          <div className="w-full md:w-64 bg-[#0d0d14] border-b md:border-b-0 md:border-r border-white/5 p-4 flex flex-col justify-between shrink-0">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 px-2 pb-3 border-b border-white/5">
+                <LayoutDashboard size={14} className="text-cyan-400" />
+                <span className="text-[11px] font-black uppercase tracking-widest text-gray-400">Creation Studio</span>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                {(["image", "video", "voice"] as MediaType[]).map((m) => (
-                  <button key={m} onClick={() => setType(m)} className={`py-2 text-[10px] font-bold rounded-xl uppercase border transition ${type === m ? "bg-cyan-500 text-black border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.25)]" : "bg-white/5 border-white/5 text-gray-400 hover:bg-white/10"}`}>
-                    {m}
-                  </button>
-                ))}
+              
+              {/* التبديل الاحترافي ثنائي الاتجاه */}
+              <div className="space-y-1">
+                {studioTabs.map((tab) => {
+                  const TabIcon = tab.icon;
+                  const isSelected = type === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => { setType(tab.id); setResult(""); }}
+                      className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl transition duration-200 group text-left ${
+                        isSelected 
+                          ? "bg-white/5 border border-white/10 text-white font-bold shadow-inner" 
+                          : "text-gray-400 hover:bg-white/[0.02] hover:text-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition ${
+                          isSelected ? `bg-gradient-to-tr ${tab.bgGlow} text-white` : "bg-zinc-900 text-gray-500 group-hover:text-gray-300"
+                        }`}>
+                          <TabIcon size={15} className={isSelected ? tab.color : ""} />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold">{tab.title}</span>
+                          <span className="text-[10px] text-gray-500 font-medium">{tab.subtitle}</span>
+                        </div>
+                      </div>
+                      {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-cyan-400" />}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {type === "video" && (
-              <div>
-                <div className="flex items-center gap-1.5 mb-2">
-                  <Compass size={13} className="text-indigo-400" />
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Cinematic Camera Rig</label>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: "zoom-in", label: "🔭 3D Zoom In" },
-                    { id: "pan-left", label: "↔️ Pan Left/Right" },
-                    { id: "orbit-360", label: "🔄 Orbit 360°" },
-                    { id: "tilt-up", label: "↕️ Tilt Cinematic" }
-                  ].map((cam) => (
-                    <button key={cam.id} onClick={() => setCameraMove(cam.id as CameraMoveType)} className={`py-2 px-3 text-left text-[10px] font-mono rounded-xl border transition ${cameraMove === cam.id ? "border-indigo-500 bg-indigo-500/10 text-indigo-300 font-bold" : "bg-white/5 border-white/5 text-gray-400 hover:bg-white/10"}`}>
-                      {cam.label}
-                    </button>
-                  ))}
-                </div>
+            {/* صندوق معلومات الاستهلاك الخطي الذكي */}
+            <div className="mt-6 md:mt-0 bg-white/[0.02] border border-white/5 rounded-2xl p-3.5 space-y-2">
+              <div className="flex justify-between text-[10px] text-gray-400 font-mono">
+                <span>Generation Power</span>
+                <span className="text-cyan-400 font-bold">140 / 300 Credits</span>
               </div>
-            )}
-
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-emerald-400">👤</span>
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Persistent Face Lock</label>
-                </div>
-                <span className="text-[11px] font-mono text-emerald-400">{Math.round(faceLockStrength * 100)}%</span>
+              <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-cyan-400 to-indigo-500" style={{ width: "46%" }} />
               </div>
-              <input type="range" min="0.5" max="1" step="0.05" value={faceLockStrength} onChange={(e) => setFaceLockStrength(parseFloat(e.target.value))} className="w-full accent-emerald-500 bg-white/5 h-1 rounded-lg cursor-pointer" />
-            </div>
-
-            {type !== "voice" && (
-              <div>
-                <label className="text-[10px] font-black text-gray-400 block mb-2 uppercase tracking-wider">Aspect Architecture</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(["16:9", "9:16", "1:1"] as AspectRatioType[]).map((ratio) => (
-                    <button key={ratio} onClick={() => setAspectRatio(ratio)} className={`py-1.5 text-[11px] rounded-xl border transition font-mono ${aspectRatio === ratio ? "border-cyan-500 text-cyan-400 bg-cyan-500/10 font-bold" : "bg-white/5 border-white/5 text-gray-400 hover:bg-white/10"}`}>
-                      {ratio}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Guidance Inversion Strength</label>
-                <span className="text-[11px] font-mono text-cyan-400">{Math.round(creativity * 100)}%</span>
-              </div>
-              <input type="range" min="0.1" max="1" step="0.05" value={creativity} onChange={(e) => setCreativity(parseFloat(e.target.value))} className="w-full accent-cyan-500 bg-white/5 h-1 rounded-lg cursor-pointer" />
             </div>
           </div>
 
-          {/* MONITOR STAGE */}
-          <div className="lg:col-span-8 flex flex-col justify-between space-y-4">
-            <div className="space-y-2">
-              <div className="relative">
-                <textarea
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="Describe your hyper-advanced latent engine concept in absolute detail..."
-                  className="h-28 w-full rounded-2xl border border-white/5 bg-black/40 p-4 text-xs text-white outline-none placeholder:text-gray-700 transition focus:border-cyan-500/30 resize-none font-mono"
-                />
-                <button
-                  onClick={generateAI}
-                  disabled={loadingAI || !prompt.trim()}
-                  className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-500 px-4 py-2 text-[10px] font-black text-black transition disabled:opacity-20 shadow-md uppercase tracking-wider"
-                >
-                  {loadingAI ? "Processing Latent..." : "Execute Core Render ✨"}
-                </button>
+          {/* WORKSPACE AREA */}
+          <div className="flex-1 p-6 flex flex-col justify-between space-y-6 bg-gradient-to-b from-transparent to-black/30">
+            
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
+                <div>
+                  <h3 className="text-base font-black tracking-tight flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-cyan-500 animate-ping" />
+                    <span>Generate Creative {currentTabInfo.title}</span>
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">أنشئ محتواك المرئي والأفاتار الرقمي فائق الواقعية مباشرة للإنتاج البصري.</p>
+                </div>
+                <span className="self-start sm:self-center text-[10px] bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-2.5 py-1 rounded-md font-mono font-bold tracking-wide uppercase">
+                  Studio Pipeline Active
+                </span>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap gap-1.5">
-                  {PRESET_SUGGESTIONS.map((chip, idx) => (
-                    <button key={idx} onClick={() => setPrompt(chip.text)} className="text-[9px] bg-white/5 border border-white/5 hover:border-white/10 px-2.5 py-1 rounded-lg text-gray-400 transition hover:text-white font-medium">
-                      {chip.label}
-                    </button>
-                  ))}
+              {/* حقل السيناريو والوصف */}
+              <div className="space-y-2">
+                <div className="relative">
+                  <textarea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder={currentTabInfo.placeholder}
+                    className="h-28 w-full rounded-2xl border border-white/5 bg-black/40 p-4 text-xs text-white outline-none placeholder:text-zinc-600 transition focus:border-cyan-500/30 resize-none font-mono leading-relaxed"
+                  />
+                  <button
+                    onClick={generateAI}
+                    disabled={loadingAI || !prompt.trim()}
+                    className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-500 px-4 py-2 text-[10px] font-black text-black transition disabled:opacity-20 shadow-md uppercase tracking-wider"
+                  >
+                    {loadingAI ? "Rendering Video..." : "Execute Studio Render ✨"}
+                  </button>
                 </div>
-                <button onClick={() => setMotionBrushActive(!motionBrushActive)} className={`text-[9px] flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold border transition ${motionBrushActive ? "bg-amber-500 border-amber-400 text-black shadow-md" : "bg-white/5 border-white/5 text-gray-400"}`}>
-                  <Move size={10} /> Motion Brush {motionBrushActive ? "ON" : "OFF"}
-                </button>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <div className="flex flex-wrap gap-1.5">
+                    {PRESET_SUGGESTIONS.map((chip, idx) => (
+                      <button key={idx} onClick={() => setPrompt(chip.text)} className="text-[9px] bg-white/5 border border-white/5 hover:border-white/10 px-2.5 py-1 rounded-lg text-gray-400 transition hover:text-white font-medium">
+                        {chip.label}
+                      </button>
+                    ))}
+                  </div>
+                  {type === "video" && (
+                    <button onClick={() => setMotionBrushActive(!motionBrushActive)} className={`text-[9px] flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold border transition ${motionBrushActive ? "bg-amber-500 border-amber-400 text-black shadow-md" : "bg-white/5 border-white/5 text-gray-400"}`}>
+                      <Move size={10} /> Motion Brush {motionBrushActive ? "ON" : "OFF"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* أدوات التحكم المتقدمة الموزعة حسب نوع الأداة */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+                
+                <div className="bg-zinc-900/60 border border-white/5 p-3.5 rounded-xl space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    {type === "video" ? <Compass size={12} className="text-indigo-400" /> : <Settings size={12} className="text-indigo-400" />}
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
+                      {type === "video" ? "Cinematic Camera Rig" : "Avatar Lip-Sync Pass"}
+                    </label>
+                  </div>
+                  <select value={cameraMove} onChange={(e) => setCameraMove(e.target.value as CameraMoveType)} className="w-full bg-[#0d0d14] text-[11px] text-gray-300 border border-white/5 p-2 rounded-lg focus:outline-none focus:border-cyan-500/40">
+                    {type === "video" ? (
+                      <>
+                        <option value="zoom-in">🔭 3D Zoom In</option>
+                        <option value="pan-left">↔️ Pan Left/Right</option>
+                        <option value="orbit-360">🔄 Orbit 360°</option>
+                        <option value="tilt-up">↕️ Tilt Cinematic</option>
+                      </>
+                    ) : (
+                      <>
+                        <option>🎙️ Ultra-Precise Arabic/English Sync</option>
+                        <option>🎭 Dynamic Facial Expression Match</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                <div className="bg-zinc-900/60 border border-white/5 p-3.5 rounded-xl space-y-2">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-emerald-400 text-xs">👤</span>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Persistent Face Lock</label>
+                    </div>
+                    <span className="text-[10px] font-mono text-emerald-400 font-bold">{Math.round(faceLockStrength * 100)}%</span>
+                  </div>
+                  <input type="range" min="0.5" max="1" step="0.05" value={faceLockStrength} onChange={(e) => setFaceLockStrength(parseFloat(e.target.value))} className="w-full accent-emerald-500 bg-white/5 h-1 rounded-lg cursor-pointer" />
+                </div>
+
+                <div className="bg-zinc-900/60 border border-white/5 p-3.5 rounded-xl space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 block mb-2 uppercase tracking-wider">Aspect Architecture</label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(["16:9", "9:16", "1:1"] as AspectRatioType[]).map((ratio) => (
+                      <button key={ratio} type="button" onClick={() => setAspectRatio(ratio)} className={`py-1.5 text-[10px] rounded-lg border transition font-mono ${aspectRatio === ratio ? "border-cyan-500 text-cyan-400 bg-cyan-500/10 font-bold" : "bg-[#0d0d14] border-white/5 text-gray-500 hover:text-gray-300"}`}>
+                        {ratio}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
               </div>
             </div>
 
-            <div className="relative min-h-[280px] rounded-2xl border border-white/5 bg-[#030304] flex flex-col items-center justify-center p-4 overflow-hidden shadow-inner">
+            {/* شاشة مراقبة المخرجات ومعالج الفيديو النهائي */}
+            <div className="relative min-h-[250px] rounded-2xl border border-white/5 bg-[#030305] flex flex-col items-center justify-center p-4 overflow-hidden shadow-inner">
               <div className="absolute top-3 left-3 flex items-center gap-1.5 text-[9px] uppercase font-mono tracking-widest text-gray-500 bg-white/5 px-2.5 py-1 rounded-md border border-white/5">
-                <Tv size={11} className="text-cyan-400" /> Output Node Frame Buffer
+                <Tv size={11} className="text-cyan-400" /> Video Frame Buffer
               </div>
 
               <div className="absolute top-3 right-3 flex items-center gap-1.5">
-                <button onClick={() => setGenerateSoundFx(!generateSoundFx)} className={`text-[8px] font-mono px-2 py-0.5 rounded border uppercase transition ${generateSoundFx ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400" : "bg-transparent border-white/5 text-gray-600"}`}>
-                  {generateSoundFx ? "🔊 AI Sound FX Sync Enabled" : "🔇 No Audio Track"}
+                <button type="button" onClick={() => setGenerateSoundFx(!generateSoundFx)} className={`text-[8px] font-mono px-2 py-0.5 rounded border uppercase transition ${generateSoundFx ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400" : "bg-transparent border-white/5 text-gray-600"}`}>
+                  {generateSoundFx ? "🔊 AI Audio Stream Connected" : "🔇 Muted Stream"}
                 </button>
               </div>
 
               {!result && !loadingAI && (
                 <div className="text-center space-y-1">
                   <Play size={20} className="mx-auto text-zinc-800 mb-1" />
-                  <p className="text-[11px] text-zinc-600 font-mono">Cluster pipeline standing by for frame block allocations.</p>
+                  <p className="text-[11px] text-zinc-600 font-mono">Cluster pipeline standing by for video stream allocation.</p>
                 </div>
               )}
 
               {loadingAI && (
                 <div className="text-center space-y-2">
                   <RefreshCw size={20} className="animate-spin text-cyan-400 mx-auto" />
-                  <p className="text-[10px] text-cyan-400 font-mono tracking-wider animate-pulse">Running Physics Solvers & Camera Rig Inversion...</p>
+                  <p className="text-[10px] text-cyan-400 font-mono tracking-wider animate-pulse">Processing Neural Video Frame Sequences...</p>
                 </div>
               )}
 
               {result && !loadingAI && (
-                <div className="w-full h-full flex items-center justify-center max-h-[250px]">
-                  {result.includes("mp4") ? (
-                    <video src={result} controls autoPlay loop className="rounded-xl max-h-[230px] w-full object-contain" />
-                  ) : (
-                    <div className="relative w-full h-[230px]">
-                      <Image src={result} alt="AI Output Core" fill className="rounded-xl object-contain" />
-                    </div>
-                  )}
+                <div className="w-full h-full flex items-center justify-center max-h-[220px]">
+                  <video src={result} controls autoPlay loop className="rounded-xl max-h-[190px] w-full object-contain" />
                 </div>
               )}
 
@@ -357,8 +409,10 @@ export default function HomePage() {
                 <span className="text-[8px] font-mono text-zinc-600">04.0s SEC</span>
               </div>
             </div>
+
           </div>
         </div>
+        
         <div className="mt-4 flex items-center justify-center gap-1.5 text-[10px] font-mono text-zinc-600">
           <ShieldCheck size={12} className="text-cyan-500/60" /> Secure payment gateways layered via Lemon Squeezy Merchant Global Node.
         </div>
@@ -394,7 +448,7 @@ export default function HomePage() {
 
               <div className="absolute top-4 left-4 z-20">
                 <span className="px-2.5 py-1 rounded-md bg-black/60 backdrop-blur-md text-[9px] font-mono font-bold uppercase tracking-wider flex items-center gap-1 border border-white/5">
-                  {item.type === "video" ? <Video size={10} className="text-cyan-400" /> : <ImageIcon size={10} className="text-indigo-400" />}
+                  <Video size={10} className="text-cyan-400" />
                   {item.type}
                 </span>
               </div>
@@ -425,109 +479,6 @@ export default function HomePage() {
 
       {/* FEATURES HUB */}
       <section id="features" className="relative z-10 mx-auto grid max-w-7xl gap-6 px-6 pb-32 md:grid-cols-4">
-        <Feature icon={<Sparkles size={16} />} title="Spatial 3D Images" text="Synthesis framework configured to build immaculate depths and highly clean mesh surfaces." />
-        <Feature icon={<Mic size={16} />} title="Vocal Tonal Layering" text="Multi-accented human speech parameters with synthetic emotion mapping frequencies." />
-        <Feature icon={<Video size={16} />} title="Fluid Mechanics Video" text="Enforces spatial real-world consistency rules across every single generated frame block." />
-        <Feature icon={<BarChart3 size={16} />} title="Telemetry Console" text="Tracks compute units, active nodes, history chains, and model iteration sequences live." />
-      </section>
-
-      {/* PRICING PLANS */}
-      <section id="pricing" className="relative z-10 mx-auto max-w-5xl px-6 pb-32">
-        <div className="mb-14 text-center">
-          <h2 className="text-xs font-black tracking-[0.2em] text-cyan-400 uppercase mb-2">Computational Costing</h2>
-          <p className="text-3xl font-black tracking-tight">Flexible Studio Scaler Plans</p>
-        </div>
-
-        <div className="grid gap-8 md:grid-cols-2 max-w-4xl mx-auto">
-          <PricingCard
-            title="PRO CREATOR STUDIO"
-            price="$15"
-            description="Engineered for independent design practitioners."
-            features={["Kling High-Speed Spatial Pass", "1500 Compute Node Credits /mo", "Priority Node Allocation", "Raw HD File Download Access"]}
-            buttonText={loadingPlan === "pro" ? "Routing Gateway..." : "Deploy Pro Engine"}
-            onClick={() => goToCheckout("pro")}
-          />
-          <PricingCard
-            title="PREMIUM AGENT ARCHITECTURE"
-            price="$25"
-            description="Tailored specifically for production agencies."
-            highlighted
-            features={["Everything inside Pro Studio Matrix", "4K Neural Network Upscaling", "Uncapped Continuous Rendering Lines", "Commercial Use Verification Contract"]}
-            buttonText={loadingPlan === "premium" ? "Routing Gateway..." : "Deploy Premium Architecture"}
-            onClick={() => goToCheckout("premium")}
-          />
-        </div>
-      </section>
-
-      {/* INTERACTIVE FAQ */}
-      <section className="relative z-10 mx-auto max-w-3xl px-6 pb-32">
-        <div className="mb-12 text-center">
-          <HelpCircle size={22} className="mx-auto text-cyan-400 mb-2" />
-          <p className="text-xl font-extrabold tracking-tight">System FAQ Knowledge Base</p>
-        </div>
-        <div className="space-y-3">
-          {[
-            { q: "How do compute node credits calculate allocations?", a: "Every second of generated video consumes roughly 5 node units. Images take 1 unit per spatial inversion cycle." },
-            { q: "Can I cancel my commercial use license contract anytime?", a: "Yes. All licenses are managed dynamically. Once cancelled, your assets remain safe under your folder directory." },
-            { q: "What underlying models operate AMKAAI core pipelines?", a: "We run a bespoke proprietary optimization layer constructed directly above Kling-v2 and specialized custom weights." }
-          ].map((faq, i) => (
-            <div key={i} className="border border-white/5 bg-[#09090b]/60 rounded-xl overflow-hidden transition-all">
-              <button onClick={() => setActiveFaq(activeFaq === i ? null : i)} className="w-full p-4 flex items-center justify-between text-left text-xs font-bold font-mono text-gray-300 hover:text-white">
-                <span>{faq.q}</span>
-                <ChevronDown size={14} className={`transform transition-transform text-gray-500 ${activeFaq === i ? "rotate-180 text-cyan-400" : ""}`} />
-              </button>
-              <AnimatePresence>
-                {activeFaq === i && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-t border-white/5 bg-black/30">
-                    <p className="p-4 text-xs text-gray-400 font-light leading-relaxed">{faq.a}</p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          ))}
-        </div>
-      </section>
-    </main>
-  );
-}
-
-/* ================= HELPERS / MINI COMPONENTS ================= */
-function Feature({ icon, title, text }: FeatureProps) {
-  return (
-    <motion.div whileHover={{ y: -3 }} className="rounded-2xl border border-white/5 bg-[#070709]/50 p-5 backdrop-blur-xl transition-all">
-      <div className="mb-4 text-cyan-400 bg-cyan-500/10 w-9 h-9 rounded-xl flex items-center justify-center border border-cyan-500/10">{icon}</div>
-      <h3 className="text-sm font-bold tracking-wide text-gray-200">{title}</h3>
-      <p className="mt-2 text-[11px] text-gray-500 leading-relaxed font-light">{text}</p>
-    </motion.div>
-  );
-}
-
-function PricingCard({ title, price, description, features, buttonText, highlighted = false, onClick }: PricingCardProps) {
-  return (
-    <motion.div whileHover={{ y: -2 }} className={`relative overflow-hidden rounded-2xl border p-7 backdrop-blur-2xl transition-all flex flex-col justify-between ${highlighted ? "border-cyan-500/20 bg-gradient-to-b from-cyan-950/10 via-black to-black shadow-2xl" : "border-white/5 bg-[#070709]"}`}>
-      {highlighted && (
-        <div className="absolute right-4 top-4 rounded-full bg-cyan-400 px-2.5 py-0.5 text-[8px] font-black text-black tracking-widest uppercase">
-          CLUSTER OPTIMAL
-        </div>
-      )}
-      <div>
-        <h3 className="text-[10px] font-black tracking-[0.15em] text-cyan-400 uppercase font-mono">{title}</h3>
-        <p className="mt-3 text-4xl font-black tracking-tight">{price}<span className="text-xs text-gray-600 font-normal font-mono"> /cycle</span></p>
-        <p className="mt-2 text-[11px] text-gray-400 font-light leading-relaxed">{description}</p>
-
-        <div className="mt-6 space-y-2.5 border-t border-white/5 pt-6">
-          {features.map((feature, index) => (
-            <div key={index} className="flex items-center gap-2 text-[11px] text-gray-300 font-light">
-              <CheckCircle2 size={12} className="text-cyan-400 shrink-0" />
-              {feature}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <button onClick={onClick} className={`mt-8 w-full rounded-xl py-3 text-[11px] font-black uppercase tracking-wider transition ${highlighted ? "bg-cyan-500 text-black hover:opacity-90 shadow-lg shadow-cyan-500/10" : "bg-white/5 text-white border border-white/10 hover:bg-white/10"}`}>
-        {buttonText}
-      </button>
-    </motion.div>
-  );
-}
+        <Feature icon={<Sparkles size={16} />} title="Spatial 3D Tracking" text="Synthesis framework configured to build immaculate depths and highly clean avatar surfaces." />
+        <Feature icon={<Video size={16} />} title="Fluid Video Mechanics" text="Enforces spatial real-world consistency rules across every single generated frame block." />
+        <Feature icon={<UserSquare2 size={16}
