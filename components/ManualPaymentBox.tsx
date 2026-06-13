@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Check, Copy } from "lucide-react"; // تأكد من تثبيت lucide-react أو استبدلها بأيقونات مخصصة
+import { Check, Copy } from "lucide-react"; // تأكد من تثبيت lucide-react في مشروعك
 
 interface ManualPaymentBoxProps {
   plan: "pro" | "premium";
@@ -14,11 +14,11 @@ export default function ManualPaymentBox({ plan, userEmail }: ManualPaymentBoxPr
   const [timeLeft, setTimeLeft] = useState(300); // 5 دقائق بالثواني
   const [copied, setCopied] = useState(false);
 
-  // 💳 البيانات الحقيقية والكاملة (مخفية في الخلفية للنسخ فقط)
+  // 💳 البيانات الحقيقية والكاملة الحساسة (مخفية في الخلفية للنسخ السري فقط)
   const REAL_RIP_NUMBER = "00799999000123456789"; 
   const REAL_CRYPTO_WALLET = "TY67rX93hskdjf93847hsdkfjhskiwueh3";
 
-  // دالة ذكية لتمويه الأرقام وعرض قناع الحماية لحساب بريدي موب
+  // دالة تمويه أرقام حساب بريدي موب
   const getMaskedNumber = (num: string) => {
     if (num.length < 10) return num;
     const firstSix = num.substring(0, 6);
@@ -26,13 +26,15 @@ export default function ManualPaymentBox({ plan, userEmail }: ManualPaymentBoxPr
     return `${firstSix} •••• •••• •••• ${lastFour}`;
   };
 
-  // دالة ذكية لتمويه محفظة الكريبتو
+  // 🪙 دالة التمويه الجديدة والمخصصة لإخفاء عنوان محفظة الـ Crypto TRC20
   const getMaskedWallet = (wallet: string) => {
-    if (wallet.length < 10) return wallet;
-    return `${wallet.substring(0, 6)} •••••••••••••••••••••• ${wallet.substring(wallet.length - 4)}`;
+    if (wallet.length < 12) return wallet;
+    const firstSix = wallet.substring(0, 6);
+    const lastFour = wallet.substring(wallet.length - 4);
+    return `${firstSix} •••••••••••••••••••••• ${lastFour}`;
   };
 
-  // تشغيل العداد التنازلي عند الضغط على الزر
+  // تشغيل العداد التنازلي عند الضغط على زر التفعيل
   useEffect(() => {
     if (!isPending || timeLeft <= 0) return;
 
@@ -43,12 +45,12 @@ export default function ManualPaymentBox({ plan, userEmail }: ManualPaymentBoxPr
     return () => clearInterval(timer);
   }, [isPending, timeLeft]);
 
-  // دالة النسخ الذكية والآمنة للحافظة
+  // دالة النسخ الذكية والآمنة للحافظة (Clipboard) بدون إظهار النص الحقيقي
   const handleCopy = async (textToCopy: string) => {
     try {
       await navigator.clipboard.writeText(textToCopy);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000); // إعادة حالة الزر بعد ثانيتين
+      setTimeout(() => setCopied(false), 2000); // إعادة زر النسخ لوضعه الطبيعي بعد ثانيتين
     } catch (err) {
       console.error("Failed to copy:", err);
     }
@@ -59,7 +61,6 @@ export default function ManualPaymentBox({ plan, userEmail }: ManualPaymentBoxPr
     setTimeLeft(300); // إعادة ضبط الـ 5 دقائق
 
     try {
-      // تم توجيه الرابط إلى المسار النظيف لـ manual-payment المتوافق مع مشروعك الحالي
       const res = await fetch("/api/manual-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -108,7 +109,7 @@ export default function ManualPaymentBox({ plan, userEmail }: ManualPaymentBoxPr
         </button>
       </div>
 
-      {/* تفاصيل الدفع بناءً على الاختيار مع ميزة الإخفاء والنسخ */}
+      {/* تفاصيل الدفع المحمية بناءً على اختيار العميل */}
       <div className="bg-gray-800 p-4 rounded-lg mb-6 text-right text-sm">
         {paymentMethod === "baridimob" ? (
           <div>
@@ -140,10 +141,12 @@ export default function ManualPaymentBox({ plan, userEmail }: ManualPaymentBoxPr
           <div>
             <p className="font-semibold text-yellow-400 mb-3 text-center">يرجى إرسال مبلغ الباقة إلى المحفظة التالية:</p>
             
+            {/* 🔒 صندوق محفظة الكريبتو المموه والآمن من النسخ اليدوي */}
             <div className="flex items-center justify-between bg-gray-900 border border-white/5 p-3 rounded-xl my-2">
               <div className="flex flex-col text-right w-[70%]">
-                <span className="text-[10px] text-gray-500 font-semibold">عنوان المحفظة (USDT)</span>
-                <span className="text-xs font-mono text-gray-300 select-none truncate mt-0.5">
+                <span className="text-[10px] text-gray-500 font-semibold">عنوان المحفظة (USDT TRC-20)</span>
+                {/* select-none يمنع تظليل القناع يدوياً */}
+                <span className="text-xs font-mono text-gray-300 select-none truncate mt-0.5 tracking-tight">
                   {getMaskedWallet(REAL_CRYPTO_WALLET)}
                 </span>
               </div>
@@ -156,16 +159,16 @@ export default function ManualPaymentBox({ plan, userEmail }: ManualPaymentBoxPr
                 }`}
               >
                 {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copied ? "تم النسخ!" : "نسخ"}</span>
+                <span>{copied ? "تم النسخ!" : "نسخ العنوان"}</span>
               </button>
             </div>
 
-            <p className="text-gray-400 text-center text-xs mt-2">الشبكة: Tron (TRC-20)</p>
+            <p className="text-gray-400 text-center text-xs mt-2">الشبكة المستهدفة: Tron (TRC-20)</p>
           </div>
         )}
       </div>
 
-      {/* الزر والـ Timer */}
+      {/* أزرار الإرسال والعداد التنازلي التلقائي */}
       {!isPending ? (
         <button
           type="button"
